@@ -1,0 +1,7 @@
+[
+  "destination_port",
+  "protocol",
+  "packet_count",
+  "byte_count",
+  "flow_duration_us"
+]

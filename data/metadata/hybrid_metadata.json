@@ -1,0 +1,797 @@
+{
+  "model_type": "probability-level RF + DNN fusion",
+  "feature_order": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "class_order": [
+    "Benign",
+    "Brute Force",
+    "Botnet",
+    "Web Attack"
+  ],
+  "base_models": {
+    "random_forest": "C:\\Users\\Shinjini\\sdn-ids-project\\models\\trained\\random_forest.joblib",
+    "dnn": "C:\\Users\\Shinjini\\sdn-ids-project\\models\\trained\\dnn.keras"
+  },
+  "probability_formula": "rf_weight * rf_probabilities + dnn_weight * dnn_probabilities",
+  "rf_source_class_order": [
+    "Benign",
+    "Botnet",
+    "Brute Force",
+    "Web Attack"
+  ],
+  "dnn_source_class_order": [
+    "Benign",
+    "Brute Force",
+    "Botnet",
+    "Web Attack"
+  ],
+  "selected_weights": {
+    "rf_weight": 0.6,
+    "dnn_weight": 0.4
+  },
+  "selection_criterion": "Validation macro F1 primary; Web Attack F1 and precision as tie-breakers",
+  "validation_results": [
+    {
+      "rf_weight": 0.1,
+      "dnn_weight": 0.9,
+      "accuracy": 0.7773050006119435,
+      "macro_precision": 0.7381711932281912,
+      "macro_recall": 0.9300275096879044,
+      "macro_f1": 0.704508189334875,
+      "weighted_precision": 0.9948418453242441,
+      "weighted_recall": 0.7773050006119435,
+      "weighted_f1": 0.8693383089260291,
+      "web_attack_precision": 0.0010120794227506716,
+      "web_attack_recall": 1.0,
+      "web_attack_f1": 0.00202211230724469,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9982982736703981,
+          "recall": 0.7364397070333917,
+          "f1": 0.8476052249637155
+        },
+        "Brute Force": {
+          "precision": 0.9855977370336513,
+          "recall": 1.0,
+          "f1": 0.9927466360896117
+        },
+        "Botnet": {
+          "precision": 0.9677766827859647,
+          "recall": 0.9836703317182258,
+          "f1": 0.9756587839789281
+        },
+        "Web Attack": {
+          "precision": 0.0010120794227506716,
+          "recall": 1.0,
+          "f1": 0.00202211230724469
+        }
+      },
+      "confusion_matrix": [
+        [
+          389528,
+          835,
+          1406,
+          137165
+        ],
+        [
+          0,
+          57142,
+          0,
+          0
+        ],
+        [
+          664,
+          0,
+          42227,
+          37
+        ],
+        [
+          0,
+          0,
+          0,
+          139
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.2,
+      "dnn_weight": 0.8,
+      "accuracy": 0.876826095180269,
+      "macro_precision": 0.7390000719581252,
+      "macro_recall": 0.9596214665898997,
+      "macro_f1": 0.7235874526547851,
+      "weighted_precision": 0.9952153292645856,
+      "weighted_recall": 0.876826095180269,
+      "weighted_f1": 0.9312186764383921,
+      "web_attack_precision": 0.0018572211162032521,
+      "web_attack_recall": 1.0,
+      "web_attack_f1": 0.00370755648022192,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9985269694881715,
+          "recall": 0.854815534641373,
+          "f1": 0.9210994334560404
+        },
+        "Brute Force": {
+          "precision": 0.9868402873722023,
+          "recall": 1.0,
+          "f1": 0.9933765624185109
+        },
+        "Botnet": {
+          "precision": 0.9687758098559236,
+          "recall": 0.9836703317182258,
+          "f1": 0.9761662582643673
+        },
+        "Web Attack": {
+          "precision": 0.0018572211162032521,
+          "recall": 1.0,
+          "f1": 0.00370755648022192
+        }
+      },
+      "confusion_matrix": [
+        [
+          452141,
+          762,
+          1361,
+          74670
+        ],
+        [
+          0,
+          57142,
+          0,
+          0
+        ],
+        [
+          667,
+          0,
+          42227,
+          34
+        ],
+        [
+          0,
+          0,
+          0,
+          139
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.3,
+      "dnn_weight": 0.7,
+      "accuracy": 0.9423453809388327,
+      "macro_precision": 0.7406103929981794,
+      "macro_recall": 0.9774509111974434,
+      "macro_f1": 0.7361500756956623,
+      "weighted_precision": 0.9956495152638678,
+      "weighted_recall": 0.9423453809388327,
+      "weighted_f1": 0.9679367418986924,
+      "web_attack_precision": 0.004078616816905571,
+      "web_attack_recall": 0.9928057553956835,
+      "web_attack_f1": 0.008123859421910873,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9986396981425402,
+          "recall": 0.932698597556595,
+          "f1": 0.9645434443008499
+        },
+        "Brute Force": {
+          "precision": 0.989437595234797,
+          "recall": 1.0,
+          "f1": 0.9946907584382126
+        },
+        "Botnet": {
+          "precision": 0.9702856617984752,
+          "recall": 0.9842992918374953,
+          "f1": 0.9772422406216754
+        },
+        "Web Attack": {
+          "precision": 0.004078616816905571,
+          "recall": 0.9928057553956835,
+          "f1": 0.008123859421910873
+        }
+      },
+      "confusion_matrix": [
+        [
+          493336,
+          610,
+          1294,
+          33694
+        ],
+        [
+          0,
+          57142,
+          0,
+          0
+        ],
+        [
+          671,
+          0,
+          42254,
+          3
+        ],
+        [
+          1,
+          0,
+          0,
+          138
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.4,
+      "dnn_weight": 0.6,
+      "accuracy": 0.9463571874756613,
+      "macro_precision": 0.7436034019546671,
+      "macro_recall": 0.9786061519377368,
+      "macro_f1": 0.7400514723959085,
+      "weighted_precision": 0.9976796957314531,
+      "weighted_recall": 0.9463571874756613,
+      "weighted_f1": 0.9710161533313267,
+      "web_attack_precision": 0.004180627708954536,
+      "web_attack_recall": 0.9784172661870504,
+      "web_attack_f1": 0.00832568105295378,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9999757678071279,
+          "recall": 0.9362169949369865,
+          "f1": 0.9670465940791472
+        },
+        "Brute Force": {
+          "precision": 0.9977649729352192,
+          "recall": 1.0,
+          "f1": 0.9988812362339615
+        },
+        "Botnet": {
+          "precision": 0.9724922393673668,
+          "recall": 0.9997903466269101,
+          "f1": 0.9859523782175715
+        },
+        "Web Attack": {
+          "precision": 0.004180627708954536,
+          "recall": 0.9784172661870504,
+          "f1": 0.00832568105295378
+        }
+      },
+      "confusion_matrix": [
+        [
+          495197,
+          128,
+          1214,
+          32395
+        ],
+        [
+          0,
+          57142,
+          0,
+          0
+        ],
+        [
+          9,
+          0,
+          42919,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          136
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.5,
+      "dnn_weight": 0.5,
+      "accuracy": 0.9509507377496054,
+      "macro_precision": 0.7459651979801076,
+      "macro_recall": 0.9799774579144351,
+      "macro_f1": 0.7421094526093257,
+      "weighted_precision": 0.998350499485474,
+      "weighted_recall": 0.9509507377496054,
+      "weighted_f1": 0.9738010798525856,
+      "web_attack_precision": 0.004521577232528759,
+      "web_attack_recall": 0.9784172661870504,
+      "web_attack_f1": 0.009001555415825528,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9999779159480985,
+          "recall": 0.9416789240245474,
+          "f1": 0.9699531951810607
+        },
+        "Brute Force": {
+          "precision": 0.9998775131673345,
+          "recall": 1.0,
+          "f1": 0.9999387528326815
+        },
+        "Botnet": {
+          "precision": 0.9794837855724685,
+          "recall": 0.9998136414461424,
+          "f1": 0.9895443070077351
+        },
+        "Web Attack": {
+          "precision": 0.004521577232528759,
+          "recall": 0.9784172661870504,
+          "f1": 0.009001555415825528
+        }
+      },
+      "confusion_matrix": [
+        [
+          498086,
+          7,
+          899,
+          29942
+        ],
+        [
+          0,
+          57142,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          42920,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          136
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.6,
+      "dnn_weight": 0.4,
+      "accuracy": 0.9524448336864592,
+      "macro_precision": 0.7510148123151899,
+      "macro_recall": 0.9804217477502181,
+      "macro_f1": 0.7448988976755035,
+      "weighted_precision": 0.9997281595142284,
+      "weighted_recall": 0.9524448336864592,
+      "weighted_f1": 0.9752888926423293,
+      "web_attack_precision": 0.004529860440329081,
+      "web_attack_recall": 0.9784172661870504,
+      "web_attack_f1": 0.009017969630661097,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9999779575462341,
+          "recall": 0.9434560833676792,
+          "f1": 0.970895093344073
+        },
+        "Brute Force": {
+          "precision": 0.9998775131673345,
+          "recall": 1.0,
+          "f1": 0.9999387528326815
+        },
+        "Botnet": {
+          "precision": 0.9996739181068617,
+          "recall": 0.9998136414461424,
+          "f1": 0.9997437748945983
+        },
+        "Web Attack": {
+          "precision": 0.004529860440329081,
+          "recall": 0.9784172661870504,
+          "f1": 0.009017969630661097
+        }
+      },
+      "confusion_matrix": [
+        [
+          499026,
+          7,
+          14,
+          29887
+        ],
+        [
+          0,
+          57142,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          42920,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          136
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.7,
+      "dnn_weight": 0.30000000000000004,
+      "accuracy": 0.9524686756428984,
+      "macro_precision": 0.7510008381196424,
+      "macro_recall": 0.9786307489793225,
+      "macro_f1": 0.744884514221824,
+      "weighted_precision": 0.9997248800660098,
+      "weighted_recall": 0.9524686756428984,
+      "weighted_f1": 0.9753007568387673,
+      "web_attack_precision": 0.00449925012497917,
+      "web_attack_recall": 0.9712230215827338,
+      "web_attack_f1": 0.008957006369426751,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9999759545059252,
+          "recall": 0.9434863328884133,
+          "f1": 0.9709101662665323
+        },
+        "Brute Force": {
+          "precision": 0.9998775131673345,
+          "recall": 1.0,
+          "f1": 0.9999387528326815
+        },
+        "Botnet": {
+          "precision": 0.9996506346803308,
+          "recall": 0.9998136414461424,
+          "f1": 0.9997321314186552
+        },
+        "Web Attack": {
+          "precision": 0.00449925012497917,
+          "recall": 0.9712230215827338,
+          "f1": 0.008957006369426751
+        }
+      },
+      "confusion_matrix": [
+        [
+          499042,
+          7,
+          15,
+          29870
+        ],
+        [
+          0,
+          57142,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          42920,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          135
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.8,
+      "dnn_weight": 0.19999999999999996,
+      "accuracy": 0.9524845702805245,
+      "macro_precision": 0.75100074930637,
+      "macro_recall": 0.9786315730500725,
+      "macro_f1": 0.7448856609039602,
+      "weighted_precision": 0.9997231961323138,
+      "weighted_recall": 0.9524845702805245,
+      "weighted_f1": 0.9753084265301345,
+      "web_attack_precision": 0.004500900180036007,
+      "web_attack_recall": 0.9712230215827338,
+      "web_attack_f1": 0.008960276109248997,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9999739513411052,
+          "recall": 0.943507129433918,
+          "f1": 0.970920233463035
+        },
+        "Brute Force": {
+          "precision": 0.9998775110240078,
+          "recall": 0.9999824997374961,
+          "f1": 0.9999300026249016
+        },
+        "Botnet": {
+          "precision": 0.9996506346803308,
+          "recall": 0.9998136414461424,
+          "f1": 0.9997321314186552
+        },
+        "Web Attack": {
+          "precision": 0.004500900180036007,
+          "recall": 0.9712230215827338,
+          "f1": 0.008960276109248997
+        }
+      },
+      "confusion_matrix": [
+        [
+          499053,
+          7,
+          15,
+          29859
+        ],
+        [
+          1,
+          57141,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          42920,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          135
+        ]
+      ]
+    },
+    {
+      "rf_weight": 0.9,
+      "dnn_weight": 0.09999999999999998,
+      "accuracy": 0.9524909281355749,
+      "macro_precision": 0.7510052360618209,
+      "macro_recall": 0.9786334636451184,
+      "macro_f1": 0.7448890722748123,
+      "weighted_precision": 0.9997247855373281,
+      "weighted_recall": 0.9524909281355749,
+      "weighted_f1": 0.9753125877735641,
+      "web_attack_precision": 0.0045013504051215365,
+      "web_attack_recall": 0.9712230215827338,
+      "web_attack_f1": 0.008961168270826419,
+      "per_class": {
+        "Benign": {
+          "precision": 0.9999739515498828,
+          "recall": 0.9435146918141015,
+          "f1": 0.9709242376488807
+        },
+        "Brute Force": {
+          "precision": 0.9998950076119482,
+          "recall": 0.9999824997374961,
+          "f1": 0.9999387517608869
+        },
+        "Botnet": {
+          "precision": 0.9996506346803308,
+          "recall": 0.9998136414461424,
+          "f1": 0.9997321314186552
+        },
+        "Web Attack": {
+          "precision": 0.0045013504051215365,
+          "recall": 0.9712230215827338,
+          "f1": 0.008961168270826419
+        }
+      },
+      "confusion_matrix": [
+        [
+          499057,
+          6,
+          15,
+          29856
+        ],
+        [
+          1,
+          57141,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          42920,
+          0
+        ],
+        [
+          4,
+          0,
+          0,
+          135
+        ]
+      ]
+    }
+  ],
+  "test_result": {
+    "accuracy": 0.9528505965995336,
+    "macro_precision": 0.7510557546925553,
+    "macro_recall": 0.9788277320262679,
+    "macro_f1": 0.7450130771474534,
+    "weighted_precision": 0.9997429629366043,
+    "weighted_recall": 0.9528505965995336,
+    "weighted_f1": 0.9755106429394144,
+    "web_attack_precision": 0.004567130096044059,
+    "web_attack_recall": 0.9714285714285714,
+    "web_attack_f1": 0.009091516812621164,
+    "per_class": {
+      "Benign": {
+        "precision": 0.9999879827913573,
+        "recall": 0.9439289441444711,
+        "f1": 0.9711501429655132
+      },
+      "Brute Force": {
+        "precision": 0.9998775153105862,
+        "recall": 1.0,
+        "f1": 0.9999387539044385
+      },
+      "Botnet": {
+        "precision": 0.9997903905722337,
+        "recall": 0.9999534125320289,
+        "f1": 0.9998718949072403
+      },
+      "Web Attack": {
+        "precision": 0.004567130096044059,
+        "recall": 0.9714285714285714,
+        "f1": 0.009091516812621164
+      }
+    },
+    "confusion_matrix": [
+      [
+        499278,
+        7,
+        9,
+        29642
+      ],
+      [
+        0,
+        57143,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        42928,
+        0
+      ],
+      [
+        4,
+        0,
+        0,
+        136
+      ]
+    ]
+  },
+  "comparison": {
+    "random_forest_test": {
+      "accuracy": 0.9528823855716213,
+      "classification_report": {
+        "Benign": {
+          "precision": 0.9999859805409909,
+          "recall": 0.9439686464903126,
+          "f1-score": 0.9711702109036588,
+          "support": 528936.0
+        },
+        "Brute Force": {
+          "precision": 0.9999125078742913,
+          "recall": 1.0,
+          "f1-score": 0.9999562520233439,
+          "support": 57143.0
+        },
+        "Botnet": {
+          "precision": 0.9997903905722337,
+          "recall": 0.9999534125320289,
+          "f1-score": 0.9998718949072403,
+          "support": 42930.0
+        },
+        "Web Attack": {
+          "precision": 0.00453659520129041,
+          "recall": 0.9642857142857143,
+          "f1-score": 0.009030704394942806,
+          "support": 140.0
+        },
+        "accuracy": 0.9528823855716213,
+        "macro avg": {
+          "precision": 0.7510563685472016,
+          "recall": 0.977051943327014,
+          "f1-score": 0.7450072655572965,
+          "support": 629149.0
+        },
+        "weighted avg": {
+          "precision": 0.9997444510465475,
+          "recall": 0.9528823855716213,
+          "f1-score": 0.9755290901374567,
+          "support": 629149.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          499299,
+          5,
+          9,
+          29623
+        ],
+        [
+          0,
+          57143,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          42928,
+          0
+        ],
+        [
+          5,
+          0,
+          0,
+          135
+        ]
+      ]
+    },
+    "dnn_test": {
+      "accuracy": 0.7044102430425861,
+      "classification_report": {
+        "Benign": {
+          "precision": 0.9983323394489492,
+          "recall": 0.7311338233737162,
+          "f1-score": 0.8440923055096283,
+          "support": 528936.0
+        },
+        "Brute Force": {
+          "precision": 0.9419484432541011,
+          "recall": 0.24618938452653868,
+          "f1-score": 0.39035489331002526,
+          "support": 57143.0
+        },
+        "Botnet": {
+          "precision": 0.9687034277198212,
+          "recall": 0.9841602608898207,
+          "f1-score": 0.9763706742157259,
+          "support": 42930.0
+        },
+        "Web Attack": {
+          "precision": 0.0007531517764558205,
+          "recall": 0.9857142857142858,
+          "f1-score": 0.001505153514751595,
+          "support": 140.0
+        },
+        "accuracy": 0.7044102430425861,
+        "macro avg": {
+          "precision": 0.7274343405498318,
+          "recall": 0.7367994386260903,
+          "f1-score": 0.5530807566375328,
+          "support": 629149.0
+        },
+        "weighted avg": {
+          "precision": 0.9909675097391859,
+          "recall": 0.7044102430425861,
+          "f1-score": 0.8117197375200925,
+          "support": 629149.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          386723,
+          867,
+          1365,
+          139981
+        ],
+        [
+          0,
+          14068,
+          0,
+          43075
+        ],
+        [
+          644,
+          0,
+          42250,
+          36
+        ],
+        [
+          2,
+          0,
+          0,
+          138
+        ]
+      ]
+    }
+  },
+  "controller_compatibility": "pending Qurrath controller confirmation"
+}

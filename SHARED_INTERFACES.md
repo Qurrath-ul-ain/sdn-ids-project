@@ -19,7 +19,21 @@ Initial fields:
 
 The ML model will receive numerical network-flow features after preprocessing.
 
-The exact feature list will be finalized before ML integration.
+The finalized ML input is exactly these five numerical features, in this order:
+
+1. `destination_port`
+2. `protocol`
+3. `packet_count`
+4. `byte_count`
+5. `flow_duration_us`
+
+The ML interface rejects missing or unexpected feature keys. IP addresses and
+other context fields are not part of the ML feature dictionary and should be
+carried separately by the detection layer.
+
+The final hybrid inference configuration uses RF weight `0.6` and DNN weight
+`0.4`. Random Forest-only inference is also available because it remains the
+strongest overall evaluated model.
 
 ## Detection Output
 

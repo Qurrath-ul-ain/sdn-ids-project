@@ -1,0 +1,188 @@
+{
+  "model_type": "tabular DNN",
+  "tensorflow_version": "2.21.0",
+  "architecture": [
+    "Dense(128, relu)",
+    "BatchNormalization",
+    "Dropout(0.30)",
+    "Dense(64, relu)",
+    "BatchNormalization",
+    "Dropout(0.30)",
+    "Dense(32, relu)",
+    "Dense(4, softmax)"
+  ],
+  "feature_order": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "label_mapping": {
+    "Benign": 0,
+    "Brute Force": 1,
+    "Botnet": 2,
+    "Web Attack": 3
+  },
+  "configuration": {
+    "optimizer": "Adam",
+    "learning_rate": 0.001,
+    "loss": "sparse_categorical_crossentropy",
+    "batch_size": 8192,
+    "max_epochs": 30,
+    "epochs_completed": 10,
+    "early_stopping_monitor": "val_loss",
+    "early_stopping_patience": 4,
+    "restore_best_weights": true,
+    "random_seed": 42,
+    "class_weights": {
+      "Benign": 0.29736400090424336,
+      "Brute Force": 2.7525350253502534,
+      "Botnet": 3.6639095905317647,
+      "Web Attack": 1130.9738058551618
+    }
+  },
+  "training_rows": 2936008,
+  "validation_rows": 629143,
+  "test_rows": 629149,
+  "training_seconds": 167.39799769967794,
+  "best_validation_loss": 0.4741475582122803,
+  "validation_metrics": {
+    "accuracy": 0.704062510430856,
+    "classification_report": {
+      "Benign": {
+        "precision": 0.9982849689408908,
+        "recall": 0.7307168758294986,
+        "f1-score": 0.8437974498389367,
+        "support": 528934.0
+      },
+      "Brute Force": {
+        "precision": 0.9417151259942517,
+        "recall": 0.24656119841797627,
+        "f1-score": 0.3908020470715504,
+        "support": 57142.0
+      },
+      "Botnet": {
+        "precision": 0.9667796144512112,
+        "recall": 0.9836703317182258,
+        "f1-score": 0.9751518370551694,
+        "support": 42928.0
+      },
+      "Web Attack": {
+        "precision": 0.0007581583841953976,
+        "recall": 1.0,
+        "f1-score": 0.0015151680310445939,
+        "support": 139.0
+      },
+      "accuracy": 0.704062510430856,
+      "macro avg": {
+        "precision": 0.7268844669426372,
+        "recall": 0.7402371014914252,
+        "f1-score": 0.5528166254991753,
+        "support": 629143.0
+      },
+      "weighted avg": {
+        "precision": 0.9907769269697376,
+        "recall": 0.704062510430856,
+        "f1-score": 0.8114306279754068,
+        "support": 629143.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        386501,
+        872,
+        1451,
+        140110
+      ],
+      [
+        0,
+        14089,
+        0,
+        43053
+      ],
+      [
+        664,
+        0,
+        42227,
+        37
+      ],
+      [
+        0,
+        0,
+        0,
+        139
+      ]
+    ]
+  },
+  "test_metrics": {
+    "accuracy": 0.7044102430425861,
+    "classification_report": {
+      "Benign": {
+        "precision": 0.9983323394489492,
+        "recall": 0.7311338233737162,
+        "f1-score": 0.8440923055096283,
+        "support": 528936.0
+      },
+      "Brute Force": {
+        "precision": 0.9419484432541011,
+        "recall": 0.24618938452653868,
+        "f1-score": 0.39035489331002526,
+        "support": 57143.0
+      },
+      "Botnet": {
+        "precision": 0.9687034277198212,
+        "recall": 0.9841602608898207,
+        "f1-score": 0.9763706742157259,
+        "support": 42930.0
+      },
+      "Web Attack": {
+        "precision": 0.0007531517764558205,
+        "recall": 0.9857142857142858,
+        "f1-score": 0.001505153514751595,
+        "support": 140.0
+      },
+      "accuracy": 0.7044102430425861,
+      "macro avg": {
+        "precision": 0.7274343405498318,
+        "recall": 0.7367994386260903,
+        "f1-score": 0.5530807566375328,
+        "support": 629149.0
+      },
+      "weighted avg": {
+        "precision": 0.9909675097391859,
+        "recall": 0.7044102430425861,
+        "f1-score": 0.8117197375200925,
+        "support": 629149.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        386723,
+        867,
+        1365,
+        139981
+      ],
+      [
+        0,
+        14068,
+        0,
+        43075
+      ],
+      [
+        644,
+        0,
+        42250,
+        36
+      ],
+      [
+        2,
+        0,
+        0,
+        138
+      ]
+    ]
+  },
+  "preprocessing_source": "Existing prepared splits using the training-fitted scaler",
+  "controller_compatibility": "pending Qurrath controller confirmation"
+}

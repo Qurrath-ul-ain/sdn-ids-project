@@ -1,0 +1,6 @@
+{
+  "Benign": 0,
+  "Brute Force": 1,
+  "Botnet": 2,
+  "Web Attack": 3
+}

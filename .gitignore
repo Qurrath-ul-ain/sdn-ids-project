@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# SDN-IDS local dataset and ML artifacts
+data/raw/
+data/processed/
+models/trained/
+models/preprocessing/

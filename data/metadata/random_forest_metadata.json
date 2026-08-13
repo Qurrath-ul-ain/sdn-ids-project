@@ -1,0 +1,174 @@
+{
+  "model_type": "RandomForestClassifier",
+  "configuration": {
+    "n_estimators": 100,
+    "max_depth": 20,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "class_weight": "balanced",
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "feature_order": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "label_mapping": {
+    "Benign": 0,
+    "Brute Force": 1,
+    "Botnet": 2,
+    "Web Attack": 3
+  },
+  "training_rows": 2936008,
+  "validation_rows": 629143,
+  "test_rows": 629149,
+  "training_seconds": 190.15844039991498,
+  "validation_metrics": {
+    "accuracy": 0.9524925175993375,
+    "classification_report": {
+      "Benign": {
+        "precision": 0.9999739516020767,
+        "recall": 0.9435165824091475,
+        "f1-score": 0.9709252386904733,
+        "support": 528934.0
+      },
+      "Brute Force": {
+        "precision": 0.9998950076119482,
+        "recall": 0.9999824997374961,
+        "f1-score": 0.9999387517608869,
+        "support": 57142.0
+      },
+      "Botnet": {
+        "precision": 0.9996506346803308,
+        "recall": 0.9998136414461424,
+        "f1-score": 0.9997321314186552,
+        "support": 42928.0
+      },
+      "Web Attack": {
+        "precision": 0.004501500500166723,
+        "recall": 0.9712230215827338,
+        "f1-score": 0.008961465697500746,
+        "support": 139.0
+      },
+      "accuracy": 0.9524925175993375,
+      "macro avg": {
+        "precision": 0.7510052735986306,
+        "recall": 0.9786339362938798,
+        "f1-score": 0.744889396891879,
+        "support": 629143.0
+      },
+      "weighted avg": {
+        "precision": 0.9997247856143701,
+        "recall": 0.9524925175993375,
+        "f1-score": 0.975313429436391,
+        "support": 629143.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        499058,
+        6,
+        15,
+        29855
+      ],
+      [
+        1,
+        57141,
+        0,
+        0
+      ],
+      [
+        8,
+        0,
+        42920,
+        0
+      ],
+      [
+        4,
+        0,
+        0,
+        135
+      ]
+    ]
+  },
+  "test_metrics": {
+    "accuracy": 0.9528823855716213,
+    "classification_report": {
+      "Benign": {
+        "precision": 0.9999859805409909,
+        "recall": 0.9439686464903126,
+        "f1-score": 0.9711702109036588,
+        "support": 528936.0
+      },
+      "Brute Force": {
+        "precision": 0.9999125078742913,
+        "recall": 1.0,
+        "f1-score": 0.9999562520233439,
+        "support": 57143.0
+      },
+      "Botnet": {
+        "precision": 0.9997903905722337,
+        "recall": 0.9999534125320289,
+        "f1-score": 0.9998718949072403,
+        "support": 42930.0
+      },
+      "Web Attack": {
+        "precision": 0.00453659520129041,
+        "recall": 0.9642857142857143,
+        "f1-score": 0.009030704394942806,
+        "support": 140.0
+      },
+      "accuracy": 0.9528823855716213,
+      "macro avg": {
+        "precision": 0.7510563685472016,
+        "recall": 0.977051943327014,
+        "f1-score": 0.7450072655572965,
+        "support": 629149.0
+      },
+      "weighted avg": {
+        "precision": 0.9997444510465475,
+        "recall": 0.9528823855716213,
+        "f1-score": 0.9755290901374567,
+        "support": 629149.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        499299,
+        5,
+        9,
+        29623
+      ],
+      [
+        0,
+        57143,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        42928,
+        0
+      ],
+      [
+        5,
+        0,
+        0,
+        135
+      ]
+    ]
+  },
+  "feature_importance": {
+    "destination_port": 0.5966990564547642,
+    "protocol": 0.04662240317073802,
+    "packet_count": 0.08628462891999916,
+    "byte_count": 0.12036246781099463,
+    "flow_duration_us": 0.1500314436435041
+  },
+  "selection_policy": "Fixed baseline configuration; validation was evaluated before one held-out test evaluation.",
+  "controller_compatibility": "pending Qurrath controller confirmation"
+}
