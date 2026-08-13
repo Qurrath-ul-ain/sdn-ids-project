@@ -40,3 +40,34 @@ Example:
   "attack_type": "Brute Force",
   "confidence": 0.94
 }
+
+
+**QURRATH WORK**
+## SDN Infrastructure — Stage 2–4 Status
+
+### Stage 2 — Mininet Topology
+- Healthcare SDN topology verified successfully.
+- Hosts: h1, h2, h3, h4.
+- Switch: s1.
+- Ryu controller: 127.0.0.1:6653.
+- OpenFlow version: OpenFlow 1.3.
+
+### Stage 3 — Ryu Controller Verification
+- Ryu successfully connected to switch s1.
+- `pingall`: **0% dropped (12/12 received)**.
+- `h1 -> h4`: **0% packet loss (3/3 received)**.
+- OpenFlow traffic forwarding verified.
+
+### Stage 4 — OpenFlow Verification
+- Flow table verified using `ovs-ofctl`.
+- Default `priority=0` controller rule confirmed.
+- Dynamic `priority=1` forwarding rules confirmed.
+- Flow packet/byte counters verified.
+- Switch port packet/byte statistics verified.
+
+### Status
+- **Stage 2 — COMPLETE**
+- **Stage 3 — COMPLETE**
+- **Stage 4 — COMPLETE**
+- **Stage 11 — PENDING**
+
