@@ -1,1 +1,12 @@
+def detect(flow_data):
+    """
+    Receives flow statistics from the SDN controller.
+    (Dummy implementation for now.)
+    """
+    print("Received flow:", flow_data)
 
+    return {
+        "prediction": "Benign",
+        "attack_type": "None",
+        "confidence": 1.0
+    }
