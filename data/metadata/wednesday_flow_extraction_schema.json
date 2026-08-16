@@ -1,0 +1,55 @@
+{
+  "source_pcap_files": [
+    "UCAP172.31.69.22",
+    "UCAP172.31.69.18",
+    "UCAP172.31.69.7",
+    "UCAP172.31.69.27",
+    "capWIN-J6GMIG1DQE5-172.31.65.99",
+    "capWIN-J6GMIG1DQE5-172.31.64.89",
+    "capWIN-J6GMIG1DQE5-172.31.65.58",
+    "capWIN-J6GMIG1DQE5-172.31.64.24"
+  ],
+  "pcap_zip": "C:\\Users\\Shinjini\\Downloads\\pcap_wednesday\\pcap.zip",
+  "day": "Wednesday-14-02-2018",
+  "total_flows": 25479,
+  "label_counts": {
+    "Benign": 25467,
+    "Brute Force": 12
+  },
+  "columns": [
+    "flow_id",
+    "src_ip",
+    "src_port",
+    "dst_ip",
+    "dst_port",
+    "protocol",
+    "timestamp_start",
+    "timestamp_end",
+    "flow_duration_us",
+    "tot_fwd_pkts",
+    "tot_bwd_pkts",
+    "totlen_fwd_bytes",
+    "totlen_bwd_bytes",
+    "label",
+    "pcap_source"
+  ],
+  "schema_mapping": {
+    "flow_id": "Flow ID  (synthesized: src_ip-src_port-dst_ip-dst_port-proto-start_ts)",
+    "src_ip": "Src IP",
+    "src_port": "Src Port",
+    "dst_ip": "Dst IP",
+    "dst_port": "Dst Port",
+    "protocol": "Protocol (6=TCP, 17=UDP)",
+    "timestamp_start": "Timestamp (epoch seconds, flow start)",
+    "flow_duration_us": "Flow Duration (microseconds)",
+    "tot_fwd_pkts": "Tot Fwd Pkts",
+    "tot_bwd_pkts": "Tot Bwd Pkts",
+    "totlen_fwd_bytes": "TotLen Fwd Pkts (bytes)",
+    "totlen_bwd_bytes": "TotLen Bwd Pkts (bytes)",
+    "label": "Label (Benign / Brute Force)"
+  },
+  "grouping_key": "normalized(src_ip, src_port, dst_ip, dst_port, protocol)",
+  "label_method": "Port + UTC timestamp heuristic vs CICFlowMeter reference (CSV=EST, PCAP=UTC, offset=+5h)",
+  "timezone_note": "CICFlowMeter CSV timestamps are EST (UTC-5). PCAP timestamps are UTC. FTP attack window 15:33-17:10 UTC is present in these files.",
+  "limitation": "Wednesday PCAP covers 12:29-21:30 UTC only. FTP-BruteForce (UTC 15:33-17:10) IS in this window and labeled via port 21 + timestamp. SSH-Bruteforce (UTC 07:01-08:32) is before the PCAP window and NOT captured. Only Benign + Brute Force (FTP) classes are available from this subset. Botnet and Web Attack classes require additional days (Friday-02-03, Thursday-22-02, Friday-23-02)."
+}

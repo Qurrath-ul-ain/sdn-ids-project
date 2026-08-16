@@ -1,0 +1,67 @@
+{
+  "source_csv": "C:\\Users\\Shinjini\\sdn-ids-project\\data\\raw\\real_flows_multiday.csv",
+  "source_type": "REAL bidirectional flow records from raw PCAP",
+  "temporal_window_type": "sliding windows constructed WITHIN each communication group",
+  "grouping_key": "(min(src_ip,src_port), max(src_ip,src_port), protocol) -- normalized bidirectional",
+  "sequence_length": 10,
+  "stride": 1,
+  "feature_order": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "input_shape": [
+    10,
+    5
+  ],
+  "label_mapping": {
+    "Benign": 0,
+    "Brute Force": 1,
+    "Botnet": 2,
+    "Web Attack": 3
+  },
+  "total_flow_records": 38013,
+  "total_groups": 37976,
+  "label_distribution": {
+    "Benign": 23588,
+    "Brute Force": 14117,
+    "Web Attack": 287,
+    "Botnet": 21
+  },
+  "sequence_counts": {
+    "train": 0,
+    "validation": 0,
+    "test": 0
+  },
+  "sequence_class_counts": {
+    "train": {
+      "Benign": 0,
+      "Brute Force": 0,
+      "Botnet": 0,
+      "Web Attack": 0
+    },
+    "validation": {
+      "Benign": 0,
+      "Brute Force": 0,
+      "Botnet": 0,
+      "Web Attack": 0
+    },
+    "test": {
+      "Benign": 0,
+      "Brute Force": 0,
+      "Botnet": 0,
+      "Web Attack": 0
+    }
+  },
+  "split_method": "Group-level stratified split: complete communication groups assigned to partitions before window construction. No group appears in more than one partition.",
+  "scaler": "StandardScaler fit on training flows only",
+  "available_classes": [
+    "Benign",
+    "Brute Force",
+    "Botnet",
+    "Web Attack"
+  ],
+  "limitation": "Wednesday PCAP (4 small UCAP files) contains only Benign + Brute Force (SSH). Botnet and Web Attack classes require Friday-02-03 and Friday/Thursday-02/22-02 PCAPs. All four classes are required for the final production model."
+}

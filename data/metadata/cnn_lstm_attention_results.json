@@ -1,0 +1,130 @@
+{
+  "architecture": [
+    "Conv1D(32,3,relu)",
+    "MaxPooling1D(2)",
+    "LSTM(64,return_sequences=True)",
+    "Attention",
+    "Dense(32,relu)",
+    "Dropout(0.3)",
+    "Dense(4,softmax)"
+  ],
+  "epochs_completed": 7,
+  "training_seconds": 6.761467500007711,
+  "class_weights": {
+    "0": 1.0065982404692082,
+    "1": 1.0065982404692082,
+    "2": 0.9807142857142858,
+    "3": 1.0065982404692082
+  },
+  "validation": {
+    "accuracy": 0.967032967032967,
+    "macro_precision": 0.9679991714995858,
+    "macro_recall": 0.9690909090909091,
+    "macro_f1": 0.9676075368144221,
+    "weighted_f1": 0.9670616493716042,
+    "per_class": {
+      "Benign": {
+        "precision": 0.9014084507042254,
+        "recall": 0.9696969696969697,
+        "f1": 0.9343065693430657
+      },
+      "Brute Force": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "Botnet": {
+        "precision": 1.0,
+        "recall": 0.9066666666666666,
+        "f1": 0.9510489510489509
+      },
+      "Web Attack": {
+        "precision": 0.9705882352941176,
+        "recall": 1.0,
+        "f1": 0.9850746268656716
+      }
+    },
+    "confusion_matrix": [
+      [
+        64,
+        0,
+        0,
+        2
+      ],
+      [
+        0,
+        66,
+        0,
+        0
+      ],
+      [
+        7,
+        0,
+        68,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        66
+      ]
+    ]
+  },
+  "test": {
+    "accuracy": 0.9743589743589743,
+    "macro_precision": 0.976027397260274,
+    "macro_recall": 0.9766666666666667,
+    "macro_f1": 0.9751723097046837,
+    "weighted_f1": 0.9743770341446045,
+    "per_class": {
+      "Benign": {
+        "precision": 0.9041095890410958,
+        "recall": 1.0,
+        "f1": 0.949640287769784
+      },
+      "Brute Force": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "Botnet": {
+        "precision": 1.0,
+        "recall": 0.9066666666666666,
+        "f1": 0.9510489510489509
+      },
+      "Web Attack": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        66,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        66,
+        0,
+        0
+      ],
+      [
+        7,
+        0,
+        68,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        66
+      ]
+    ]
+  },
+  "limitation": "Rows are timestamp-ordered within each source file only. They must not be interpreted as reconstructed network sessions."
+}

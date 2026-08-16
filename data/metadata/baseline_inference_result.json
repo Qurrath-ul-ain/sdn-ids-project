@@ -1,0 +1,15 @@
+{
+  "experiment": "BASELINE (surrogate timestamp-ordered windows from CICFlowMeter CSVs)",
+  "sequence_index": 0,
+  "true_label": "Benign",
+  "prediction": "Benign",
+  "confidence": 0.9994243383407593,
+  "probabilities": {
+    "Benign": 0.9994243383407593,
+    "Brute Force": 5.925725417910144e-05,
+    "Botnet": 0.00027763849357143044,
+    "Web Attack": 0.00023881744709797204
+  },
+  "correct": true,
+  "note": "BASELINE inference only. This sequence comes from surrogate timestamp-ordered windows from reduced CICFlowMeter CSVs. It is NOT raw-PCAP inference. The raw-PCAP pipeline produced 0 valid length-10 sequences because the maximum observed communication-group size is 3."
+}

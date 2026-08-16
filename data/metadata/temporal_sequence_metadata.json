@@ -1,0 +1,63 @@
+{
+  "source_files": [
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Friday-02-03-2018_TrafficForML_CICFlowMeter.csv",
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Thursday-22-02-2018_TrafficForML_CICFlowMeter.csv",
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv"
+  ],
+  "temporal_window_type": "chronological surrogate windows; not true sessions",
+  "grouping": "none; source lacks reliable session identifiers",
+  "sequence_length": 10,
+  "stride": 1,
+  "feature_order": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "input_shape": [
+    10,
+    5
+  ],
+  "label_mapping": {
+    "Benign": 0,
+    "Brute Force": 1,
+    "Botnet": 2,
+    "Web Attack": 3
+  },
+  "flow_rows_after_cleaning": 2000,
+  "flow_class_counts": {
+    "Benign": 500,
+    "Brute Force": 500,
+    "Botnet": 500,
+    "Web Attack": 500
+  },
+  "sequence_counts": {
+    "train": 1373,
+    "validation": 273,
+    "test": 273
+  },
+  "sequence_class_counts": {
+    "train": {
+      "Benign": 341,
+      "Brute Force": 341,
+      "Botnet": 350,
+      "Web Attack": 341
+    },
+    "validation": {
+      "Benign": 66,
+      "Brute Force": 66,
+      "Botnet": 75,
+      "Web Attack": 66
+    },
+    "test": {
+      "Benign": 66,
+      "Brute Force": 66,
+      "Botnet": 75,
+      "Web Attack": 66
+    }
+  },
+  "split_method": "stratified flow-row split before window construction; windows do not cross partitions",
+  "limitation": "Rows are timestamp-ordered within each source file only. They must not be interpreted as reconstructed network sessions."
+}
