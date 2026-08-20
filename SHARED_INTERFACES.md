@@ -171,7 +171,48 @@ Example:
 * **Stage 9 — COMPLETE / RAW-PCAP SEQUENCE BLOCKER DOCUMENTED**
 * **Stage 10 — COMPLETE**
 
+## Traffic Generation — Ruchitha
 
+The traffic generator is implemented in:
+
+- `traffic/traffic_generator.py`
+
+The generator supports both normal and attack traffic for testing the healthcare SDN IDS.
+
+### Normal Traffic
+
+- `ping` — ICMP connectivity traffic
+- `iperf` — TCP throughput traffic using iperf3
+- `http` — normal HTTP requests
+
+### Attack Traffic
+
+- `bruteforce` — repeated TCP connection attempts
+- `botnet` — concurrent connection attempts using multiple workers
+- `webattack` — suspicious HTTP requests to common attack paths
+
+### Mininet Host Roles
+
+- `h1` — normal traffic source (`10.0.0.1`)
+- `h2` — normal host (`10.0.0.2`)
+- `h3` — medical server / traffic target (`10.0.0.3`)
+- `h4` — attacker host (`10.0.0.4`)
+
+### Traffic Generation Interface
+
+The generator accepts:
+
+- `--mode`
+- `--target`
+- `--port`
+- `--url`
+- `--attempts`
+- `--workers`
+
+Example:
+
+```bash
+python3 traffic/traffic_generator.py --mode bruteforce --target 10.0.0.3 --port 8000 --attempts 50
 
 
 
