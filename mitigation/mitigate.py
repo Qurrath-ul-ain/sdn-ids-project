@@ -17,7 +17,7 @@ def mitigation(prediction, ip):
     else:
         print("✅ Normal Traffic. No action required.")
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     prediction = "Attack"
     ip = "10.0.0.2"
 
