@@ -1,1 +1,182 @@
+#!/usr/bin/env python3
 
+import time
+from collections import defaultdict, deque
+
+
+class ThreatDetector:
+    """
+    Rule-based flow IDS for the healthcare SDN testbed.
+
+    Detection classes:
+        Benign
+        Brute Force
+        Botnet
+        Web Attack
+    """
+
+    def __init__(self):
+        self.history = defaultdict(lambda: deque(maxlen=100))
+
+        self.ssh_ports = {22}
+        self.web_ports = {80, 443, 8080, 8000}
+
+    def detect(self, flow):
+
+        now = time.time()
+
+        src_ip = str(flow.get("src_ip", "unknown"))
+        dst_ip = str(flow.get("dst_ip", "unknown"))
+
+        src_port = self._number(flow.get("src_port", 0))
+        dst_port = self._number(flow.get("dst_port", 0))
+        protocol = self._number(flow.get("protocol", 0))
+
+        packets = self._number(flow.get("packet_count", 0))
+        bytes_count = self._number(flow.get("byte_count", 0))
+        duration = self._number(flow.get("flow_duration_us", 0))
+
+        key = (src_ip, dst_ip, dst_port)
+
+        self.history[key].append(now)
+
+        recent = [
+            t for t in self.history[key]
+            if now - t <= 10
+        ]
+
+        attack = "Benign"
+        confidence = 0.95
+        reason = "Normal traffic pattern"
+
+        # BRUTE FORCE
+        if dst_port in self.ssh_ports:
+
+            if len(recent) >= 5 or packets >= 20:
+
+                attack = "Brute Force"
+                confidence = 0.96
+                reason = "Repeated SSH connection attempts"
+
+        # WEB ATTACK
+        elif dst_port in self.web_ports:
+
+            if packets >= 30 or bytes_count >= 10000:
+
+                attack = "Web Attack"
+                confidence = 0.93
+                reason = "Abnormal HTTP traffic pattern"
+
+        # BOTNET
+        elif len(recent) >= 15 or packets >= 100:
+
+            attack = "Botnet"
+            confidence = 0.94
+            reason = "High-rate concurrent traffic pattern"
+
+        # GENERAL HIGH-RATE TRAFFIC
+        elif packets >= 50:
+
+            attack = "Botnet"
+            confidence = 0.85
+            reason = "Abnormally high packet count"
+
+        status = "Malicious" if attack != "Benign" else "Normal"
+
+        return {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "src_ip": src_ip,
+            "dst_ip": dst_ip,
+            "src_port": src_port,
+            "dst_port": dst_port,
+            "protocol": protocol,
+            "packet_count": packets,
+            "byte_count": bytes_count,
+            "flow_duration_us": duration,
+            "attack": attack,
+            "confidence": round(confidence * 100, 2),
+            "status": status,
+            "reason": reason,
+        }
+
+    @staticmethod
+    def _number(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+
+if __name__ == "__main__":
+
+    detector = ThreatDetector()
+
+    print("\n========================================")
+    print("        HEALTHCARE SDN IDS TEST")
+    print("========================================\n")
+
+    normal = {
+        "src_ip": "10.0.0.1",
+        "dst_ip": "10.0.0.3",
+        "src_port": 40000,
+        "dst_port": 80,
+        "protocol": 6,
+        "packet_count": 5,
+        "byte_count": 500,
+        "flow_duration_us": 1000000,
+    }
+
+    brute_force = {
+        "src_ip": "10.0.0.4",
+        "dst_ip": "10.0.0.3",
+        "src_port": 40001,
+        "dst_port": 22,
+        "protocol": 6,
+        "packet_count": 60,
+        "byte_count": 3000,
+        "flow_duration_us": 500000,
+    }
+
+    web_attack = {
+        "src_ip": "10.0.0.4",
+        "dst_ip": "10.0.0.3",
+        "src_port": 40002,
+        "dst_port": 80,
+        "protocol": 6,
+        "packet_count": 100,
+        "byte_count": 20000,
+        "flow_duration_us": 500000,
+    }
+
+    botnet = {
+        "src_ip": "10.0.0.4",
+        "dst_ip": "10.0.0.3",
+        "src_port": 40003,
+        "dst_port": 9999,
+        "protocol": 6,
+        "packet_count": 150,
+        "byte_count": 50000,
+        "flow_duration_us": 300000,
+    }
+
+    tests = [
+        ("NORMAL", normal),
+        ("BRUTE FORCE", brute_force),
+        ("WEB ATTACK", web_attack),
+        ("BOTNET", botnet),
+    ]
+
+    for test_name, flow in tests:
+
+        result = detector.detect(flow)
+
+        print("Test          :", test_name)
+        print("Source        :", result["src_ip"])
+        print("Destination   :", result["dst_ip"])
+        print("Detected      :", result["attack"])
+        print("Confidence    :", result["confidence"], "%")
+        print("Status        :", result["status"])
+        print("Reason        :", result["reason"])
+        print("----------------------------------------")
+
+    print("\n========== TEST COMPLETE ==========\n")
