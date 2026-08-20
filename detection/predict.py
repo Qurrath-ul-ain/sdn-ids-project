@@ -1,25 +1,58 @@
-mport random
+import joblib
+import numpy as np
+from datetime import datetime
 
-def predict_traffic(packet):
-    """
-    Simulates intrusion detection.
-    Returns either 'Normal' or 'Attack'.
-    """
+class ThreatDetector:
 
-    prediction = random.choice(["Normal", "Attack"])
+    def __init__(self):
+        self.model = joblib.load("models/ids_model.pkl")
 
-    print("Packet:", packet)
-    print("Prediction:", prediction)
+        self.labels = {
+            0: "Normal",
+            1: "Brute Force",
+            2: "Botnet",
+            3: "Web Attack"
+        }
 
-    return prediction
+    def detect(self, features):
+
+        features = np.array(features).reshape(1, -1)
+
+        prediction = self.model.predict(features)[0]
+
+        probability = max(self.model.predict_proba(features)[0])
+
+        result = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "attack": self.labels[prediction],
+            "confidence": round(float(probability) * 100, 2),
+            "status": "Malicious" if prediction != 0 else "Normal"
+        }
+
+        return result
 
 
-if _name_ == "_main_":
-    sample_packet = {
-        "src_ip": "10.0.0.1",
-        "dst_ip": "10.0.0.2",
-        "protocol": "TCP",
-        "packet_size": 512
-    }
+if __name__ == "__main__":
 
-    predict_traffic(sample_packet)
+    detector = ThreatDetector()
+
+    sample_flow = [
+        150,
+        45,
+        0,
+        300,
+        1200,
+        10,
+        0,
+        8,
+        250,
+        3
+    ]
+
+    result = detector.detect(sample_flow)
+
+    print("========== Detection Result ==========")
+    print("Time       :", result["timestamp"])
+    print("Attack     :", result["attack"])
+    print("Confidence :", result["confidence"], "%")
+    print("Status     :", result["status"])
