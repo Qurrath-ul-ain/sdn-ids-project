@@ -1,6 +1,6 @@
 from flask import Flask
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 # Sample data (later this can come from Detection and Mitigation)
 total_packets = 500
@@ -46,5 +46,5 @@ def dashboard():
 
     return html
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     app.run(debug=True)
