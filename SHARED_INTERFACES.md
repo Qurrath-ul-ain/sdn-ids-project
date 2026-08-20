@@ -185,6 +185,6 @@ Example:
 * **Stage 8 — COMPLETE FOR BASELINE**
 * **Stage 9 — COMPLETE / RAW-PCAP SEQUENCE BLOCKER DOCUMENTED**
 * **Stage 10 — COMPLETE**
-* **Final raw-PCAP CNN–LSTM–Attention evaluation — PENDING**
+
 
 
