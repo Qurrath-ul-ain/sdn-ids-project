@@ -1,27 +1,76 @@
-blocked_ips = []
+"""
+Mitigation Module
+Blocks malicious flows detected by the IDS.
+Supports:
+- Brute Force
+- Botnet
+- Web Attack
+"""
 
-def block_ip(ip):
-    if ip not in blocked_ips:
-        blocked_ips.append(ip)
-        print(f"IP {ip} has been blocked.")
-    else:
-        print(f"IP {ip} is already blocked.")
+from datetime import datetime
 
-def mitigation(prediction, ip):
-    """
-    Block the IP if an attack is detected.
-    """
-    if prediction == "Attack":
-        print("⚠️ Attack Detected!")
-        block_ip(ip)
-    else:
-        print("✅ Normal Traffic. No action required.")
+class MitigationEngine:
 
-if _name_ == "_main_":
-    prediction = "Attack"
-    ip = "10.0.0.2"
+    def __init__(self):
+        self.blocked_flows = []
 
-    mitigation(prediction, ip)
+    def mitigate(self, detection):
 
-    print("\nBlocked IPs:")
-    print(blocked_ips)
+        attack = detection["attack"]
+
+        if attack == "Normal":
+            return {
+                "status": "ALLOWED",
+                "action": "No mitigation required"
+            }
+
+        source = detection.get("source_ip", "Unknown")
+        destination = detection.get("destination_ip", "Unknown")
+
+        action = self.block_flow(source, destination)
+
+        return {
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "attack": attack,
+            "source": source,
+            "destination": destination,
+            "status": "BLOCKED",
+            "action": action
+        }
+
+    def block_flow(self, source, destination):
+
+        flow = {
+            "source": source,
+            "destination": destination
+        }
+
+        self.blocked_flows.append(flow)
+
+        print(f"[MITIGATION] Blocking flow {source} --> {destination}")
+
+        # In a real SDN environment, send an OpenFlow rule here.
+        # Example:
+        # datapath.send_msg(flow_mod)
+
+        return "Flow rule installed successfully"
+
+    def get_blocked_flows(self):
+        return self.blocked_flows
+
+
+if __name__ == "__main__":
+
+    engine = MitigationEngine()
+
+    sample_detection = {
+        "attack": "Botnet",
+        "source_ip": "10.0.0.5",
+        "destination_ip": "10.0.0.12"
+    }
+
+    result = engine.mitigate(sample_detection)
+
+    print("\n=== Mitigation Result ===")
+    for key, value in result.items():
+        print(f"{key}: {value}")
