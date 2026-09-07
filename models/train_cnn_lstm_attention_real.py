@@ -18,11 +18,8 @@ from pathlib import Path
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# TensorFlow import -- try user-installed path first
+# TensorFlow import 
 # ---------------------------------------------------------------------------
-import sys
-sys.path.insert(0, r'C:\Users\Shinjini\AppData\Roaming\Python\Python311\site-packages')
-
 import tensorflow as tf
 from sklearn.metrics import classification_report, confusion_matrix
 
