@@ -1,0 +1,35 @@
+{
+  "classes": [
+    "Benign",
+    "Brute Force",
+    "Botnet",
+    "Web Attack"
+  ],
+  "matrix": [
+    [
+      113,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      113,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      113,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      113
+    ]
+  ],
+  "total_support": 452
+}
