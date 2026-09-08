@@ -1,0 +1,56 @@
+{
+  "rows_read": 4194300,
+  "invalid_label_rows": 0,
+  "invalid_feature_rows": 0,
+  "rows_dropped": 0,
+  "valid_rows": 4194300,
+  "random_seed": 42,
+  "feature_order": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "label_mapping": {
+    "Benign": 0,
+    "Brute Force": 1,
+    "Botnet": 2,
+    "Web Attack": 3
+  },
+  "class_distribution_before_split": {
+    "Benign": 3526232,
+    "Botnet": 286191,
+    "Web Attack": 928,
+    "Brute Force": 380949
+  },
+  "split_row_counts": {
+    "train": 2936008,
+    "validation": 629143,
+    "test": 629149
+  },
+  "split_class_distributions": {
+    "train": {
+      "Benign": 2468362,
+      "Botnet": 200333,
+      "Web Attack": 649,
+      "Brute Force": 266664
+    },
+    "validation": {
+      "Benign": 528934,
+      "Botnet": 42928,
+      "Web Attack": 139,
+      "Brute Force": 57142
+    },
+    "test": {
+      "Benign": 528936,
+      "Botnet": 42930,
+      "Web Attack": 140,
+      "Brute Force": 57143
+    }
+  },
+  "all_classes_present_in_each_split": true,
+  "scaler_fit_rows": 2936008,
+  "scaler_fit_split": "train",
+  "controller_compatibility": "pending Qurrath controller confirmation"
+}
