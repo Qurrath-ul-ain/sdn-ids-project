@@ -1,5 +1,5 @@
 """Public SDN-IDS inference interface."""
 
-from .hybrid_ids import HybridIDS
+from .cnn_lstm_attention import CNNLSTMAttention
 
-__all__ = ["HybridIDS"]
+__all__ = ["CNNLSTMAttention"]
