@@ -136,7 +136,16 @@ def mitigation(prediction: str, ip: str) -> bool:
         No mitigation.
     """
 
-    if prediction.strip().lower() != "attack":
+    prediction_normalized = prediction.strip().lower()
+
+    malicious_predictions = {
+        "attack",
+        "brute force",
+        "botnet",
+        "web attack",
+    }
+
+    if prediction_normalized not in malicious_predictions:
         print(
             "Normal traffic. No mitigation required."
         )
