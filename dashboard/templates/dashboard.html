@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SDN Healthcare IDS Dashboard</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <div class="logo">
+            <div class="logo-icon">🛡️</div>
+            <div>
+                <h2>SDN-IDS</h2>
+                <span>Healthcare Security</span>
+            </div>
+        </div>
+
+        <nav>
+            <a href="#overview" class="nav-link active">📊 Overview</a>
+            <a href="#detections" class="nav-link">🚨 Detections</a>
+            <a href="#mitigation" class="nav-link">🛡️ Mitigation</a>
+            <a href="#system" class="nav-link">⚙️ System</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="status-dot"></div>
+            <div>
+                <strong>System Online</strong>
+                <small>IDS monitoring active</small>
+            </div>
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+        <!-- TOP BAR -->
+        <header class="topbar">
+
+            <div>
+                <h1>Intrusion Detection Dashboard</h1>
+                <p>SDN-enabled healthcare network security monitoring</p>
+            </div>
+
+            <div class="top-status">
+                <span class="live-dot"></span>
+                LIVE MONITORING
+            </div>
+
+        </header>
+
+
+        <!-- OVERVIEW -->
+        <section id="overview">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Network Overview</h2>
+                    <p>Current traffic and threat detection summary</p>
+                </div>
+            </div>
+
+
+            <!-- CARDS -->
+            <div class="cards">
+
+                <div class="card">
+                    <div class="card-icon blue">📦</div>
+                    <div>
+                        <span>Total Packets</span>
+                        <strong>{{ summary.total_packets }}</strong>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon green">✓</div>
+                    <div>
+                        <span>Normal Traffic</span>
+                        <strong>{{ summary.normal_packets }}</strong>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon red">⚠</div>
+                    <div>
+                        <span>Detected Attacks</span>
+                        <strong>{{ summary.attack_packets }}</strong>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon orange">🔒</div>
+                    <div>
+                        <span>Blocked IPs</span>
+                        <strong>{{ summary.blocked_ips }}</strong>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <!-- CHARTS -->
+            <div class="chart-grid">
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>Traffic Analysis</h3>
+                            <p>Normal vs malicious traffic</p>
+                        </div>
+                    </div>
+
+                    <div class="bar-chart">
+
+                        <div class="bar-group">
+                            <div class="bar normal-bar"
+                                 style="height: {{ (summary.normal_packets / summary.total_packets) * 220 }}px;">
+                                <span>{{ summary.normal_packets }}</span>
+                            </div>
+                            <label>Normal</label>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar attack-bar"
+                                 style="height: {{ (summary.attack_packets / summary.total_packets) * 220 }}px;">
+                                <span>{{ summary.attack_packets }}</span>
+                            </div>
+                            <label>Attacks</label>
+                        </div>
+
+                    </div>
+                </div>
+
+
+                <div class="panel">
+
+                    <div class="panel-header">
+                        <div>
+                            <h3>Attack Distribution</h3>
+                            <p>Detected threat categories</p>
+                        </div>
+                    </div>
+
+                    <div class="donut-container">
+
+                        <div class="donut">
+                            <div class="donut-center">
+                                <strong>3</strong>
+                                <span>Threats</span>
+                            </div>
+                        </div>
+
+                        <div class="legend">
+
+                            <div>
+                                <span class="legend-dot brute"></span>
+                                Brute Force
+                            </div>
+
+                            <div>
+                                <span class="legend-dot botnet"></span>
+                                Botnet
+                            </div>
+
+                            <div>
+                                <span class="legend-dot web"></span>
+                                Web Attack
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- DETECTIONS -->
+        <section id="detections" class="content-section">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Recent Threat Detections</h2>
+                    <p>Traffic classified by the intrusion detection system</p>
+                </div>
+            </div>
+
+
+            <div class="panel table-panel">
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>Source IP</th>
+                                <th>Destination IP</th>
+                                <th>Attack Type</th>
+                                <th>Confidence</th>
+                                <th>Status</th>
+                                <th>Protocol</th>
+                                <th>Packets</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                        {% for detection in detections %}
+
+                            <tr>
+
+                                <td>
+                                    <span class="ip">{{ detection.source_ip }}</span>
+                                </td>
+
+                                <td>
+                                    {{ detection.destination_ip }}
+                                </td>
+
+                                <td>
+
+                                    {% if detection.attack == "Benign" %}
+                                        <span class="badge normal">
+                                            Benign
+                                        </span>
+                                    {% elif detection.attack == "Brute Force" %}
+                                        <span class="badge brute-badge">
+                                            Brute Force
+                                        </span>
+                                    {% elif detection.attack == "Botnet" %}
+                                        <span class="badge botnet-badge">
+                                            Botnet
+                                        </span>
+                                    {% else %}
+                                        <span class="badge web-badge">
+                                            Web Attack
+                                        </span>
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+                                    <div class="confidence">
+                                        <div class="confidence-bar">
+                                            <span style="width: {{ detection.confidence }}%;"></span>
+                                        </div>
+
+                                        <strong>
+                                            {{ detection.confidence }}%
+                                        </strong>
+                                    </div>
+                                </td>
+
+                                <td>
+
+                                    {% if detection.status == "Malicious" %}
+                                        <span class="status malicious">
+                                            ● Malicious
+                                        </span>
+                                    {% else %}
+                                        <span class="status safe">
+                                            ● Normal
+                                        </span>
+                                    {% endif %}
+
+                                </td>
+
+                                <td>{{ detection.protocol }}</td>
+
+                                <td>{{ detection.packets }}</td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- MITIGATION -->
+        <section id="mitigation" class="content-section">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Mitigation Status</h2>
+                    <p>Malicious source addresses identified for blocking</p>
+                </div>
+            </div>
+
+
+            <div class="panel">
+
+                <div class="blocked-grid">
+
+                {% for item in blocked_ips %}
+
+                    <div class="blocked-card">
+
+                        <div class="blocked-icon">
+                            🔒
+                        </div>
+
+                        <div class="blocked-info">
+
+                            <strong>{{ item.ip }}</strong>
+
+                            <span>{{ item.attack }}</span>
+
+                        </div>
+
+                        <div class="blocked-status">
+                            BLOCKED
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- SYSTEM -->
+        <section id="system" class="content-section">
+
+            <div class="section-heading">
+                <div>
+                    <h2>System Information</h2>
+                    <p>Current IDS architecture components</p>
+                </div>
+            </div>
+
+
+            <div class="system-grid">
+
+                <div class="system-card">
+                    <span>Network</span>
+                    <strong>Software Defined Network</strong>
+                </div>
+
+                <div class="system-card">
+                    <span>Detection</span>
+                    <strong>Rule-Based IDS</strong>
+                </div>
+
+                <div class="system-card">
+                    <span>Mitigation</span>
+                    <strong>IP Blocking</strong>
+                </div>
+
+                <div class="system-card">
+                    <span>Dashboard</span>
+                    <strong>Flask Web Application</strong>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- FOOTER -->
+        <footer>
+
+            <span>
+                SDN-Enabled Healthcare IDS
+            </span>
+
+            <span>
+                Research Project • 2026
+            </span>
+
+        </footer>
+
+    </main>
+
+</div>
+
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+
+</body>
+</html>
+
