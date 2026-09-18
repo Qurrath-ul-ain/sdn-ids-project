@@ -1,111 +1,598 @@
-#!/usr/bin/env python3
-"""
-controller.py
-Stage 3 - Basic Ryu controller for the healthcare SDN-IDS project.
+import sys
+import os
+import json
+from datetime import datetime
 
-This is a standard L2 learning switch built on Ryu's OpenFlow 1.3 API.
-It lets traffic flow between hosts (h1-h4) in the Mininet topology.
+# Make the project root importable when OS-Ken loads this file
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-Later stages will extend this file to:
-  - Stage 11: periodically poll and export flow/port statistics
-              (for the detection module to consume)
-  - Stage 12: accept mitigation commands (block/isolate a host's flows)
+from os_ken.base import app_manager
+from os_ken.controller import ofp_event
+from os_ken.controller.handler import (
+    CONFIG_DISPATCHER,
+    DEAD_DISPATCHER,
+    MAIN_DISPATCHER,
+    set_ev_cls,
+)
+from os_ken.ofproto import ofproto_v1_3
+from os_ken.lib.packet import packet
+from os_ken.lib.packet import ethernet
+from os_ken.lib.packet import ipv4
+from os_ken.lib.packet import tcp
+from os_ken.lib.packet import udp
+from os_ken.lib.packet import ether_types
+from os_ken.lib import hub
 
-Run with (from the controller/ directory):
-    ryu-manager controller.py
-
-Then, in a separate terminal, start the Mininet topology:
-    sudo python3 ../mininet/topology.py
-
-Verify:
-    Inside the mininet> CLI, run `pingall` - all 4 hosts should reach
-    each other with 0% dropped once this controller is running.
-"""
-
-from ryu.base import app_manager
-from ryu.controller import ofp_event
-from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
-from ryu.controller.handler import set_ev_cls
-from ryu.ofproto import ofproto_v1_3
-from ryu.lib.packet import packet, ethernet, ether_types
+from detection.detector import ThreatDetector
+from mitigation.mitigate import mitigation
 
 
-class HealthcareSwitch(app_manager.RyuApp):
+RUNTIME_DIR = os.path.join(PROJECT_ROOT, "runtime")
+DETECTIONS_FILE = os.path.join(RUNTIME_DIR, "detections.json")
+BLOCK_REQUEST_FILE = os.path.join(RUNTIME_DIR, "block_requests.json")
+BLOCKED_IP_FILE = os.path.join(RUNTIME_DIR, "blocked_ips.json")
+
+
+class HealthcareSwitch(app_manager.OSKenApp):
+
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
     def __init__(self, *args, **kwargs):
         super(HealthcareSwitch, self).__init__(*args, **kwargs)
-        # mac_to_port[dpid][mac_address] = port_no
+
         self.mac_to_port = {}
+        self.datapaths = {}
+
+        self.detector = ThreatDetector()
+
+        # Prevent repeatedly processing the same unchanged flow
+        self.processed_flows = {}
+
+        os.makedirs(RUNTIME_DIR, exist_ok=True)
+
+        if not os.path.exists(DETECTIONS_FILE):
+            self._write_json(DETECTIONS_FILE, [])
+
+        if not os.path.exists(BLOCK_REQUEST_FILE):
+            self._write_json(BLOCK_REQUEST_FILE, [])
+
+        if not os.path.exists(BLOCKED_IP_FILE):
+            self._write_json(BLOCKED_IP_FILE, [])
+
+        self.monitor_thread = hub.spawn(self._monitor)
+
+        self.logger.info("Healthcare SDN IDS controller started")
+
+    # ---------------------------------------------------------
+    # Utility functions
+    # ---------------------------------------------------------
+
+    def _write_json(self, filename, data):
+        temp_file = filename + ".tmp"
+
+        with open(temp_file, "w") as f:
+            json.dump(data, f, indent=2)
+
+        os.replace(temp_file, filename)
+
+    def _read_json(self, filename, default):
+        try:
+            if not os.path.exists(filename):
+                return default
+
+            with open(filename, "r") as f:
+                return json.load(f)
+
+        except (OSError, json.JSONDecodeError):
+            return default
+
+    # ---------------------------------------------------------
+    # Switch connection
+    # ---------------------------------------------------------
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
-        """Install a default 'send everything to controller' rule
-        when a switch first connects."""
+
         datapath = ev.msg.datapath
+        self.datapaths[datapath.id] = datapath
+
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
+        # Table-miss rule
         match = parser.OFPMatch()
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
-                                           ofproto.OFPCML_NO_BUFFER)]
-        self.add_flow(datapath, 0, match, actions)
-        self.logger.info("Switch connected: dpid=%s", datapath.id)
 
-    def add_flow(self, datapath, priority, match, actions, buffer_id=None):
+        actions = [
+            parser.OFPActionOutput(
+                ofproto.OFPP_CONTROLLER,
+                ofproto.OFPCML_NO_BUFFER
+            )
+        ]
+
+        self.add_flow(
+            datapath,
+            priority=0,
+            match=match,
+            actions=actions
+        )
+
+        self.logger.info(
+            "Switch connected: datapath=%s",
+            datapath.id
+        )
+
+    @set_ev_cls(
+        ofp_event.EventOFPStateChange,
+        [MAIN_DISPATCHER, DEAD_DISPATCHER]
+    )
+    def state_change_handler(self, ev):
+
+        datapath = ev.datapath
+
+        if ev.state == MAIN_DISPATCHER:
+            self.datapaths[datapath.id] = datapath
+
+        elif ev.state == DEAD_DISPATCHER:
+            self.datapaths.pop(datapath.id, None)
+
+    # ---------------------------------------------------------
+    # Flow installation
+    # ---------------------------------------------------------
+
+    def add_flow(
+        self,
+        datapath,
+        priority,
+        match,
+        actions,
+        idle_timeout=0,
+        hard_timeout=0
+    ):
+
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        if buffer_id:
-            mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id,
-                                     priority=priority, match=match,
-                                     instructions=inst)
-        else:
-            mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
-                                     match=match, instructions=inst)
+        instructions = [
+            parser.OFPInstructionActions(
+                ofproto.OFPIT_APPLY_ACTIONS,
+                actions
+            )
+        ]
+
+        mod = parser.OFPFlowMod(
+            datapath=datapath,
+            priority=priority,
+            match=match,
+            instructions=instructions,
+            idle_timeout=idle_timeout,
+            hard_timeout=hard_timeout
+        )
+
         datapath.send_msg(mod)
+
+    # ---------------------------------------------------------
+    # Packet processing
+    # ---------------------------------------------------------
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
+
         msg = ev.msg
         datapath = msg.datapath
+
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-        dpid = datapath.id
-        in_port = msg.match['in_port']
+
+        in_port = msg.match["in_port"]
 
         pkt = packet.Packet(msg.data)
-        eth = pkt.get_protocols(ethernet.ethernet)[0]
 
-        if eth.ethertype == ether_types.ETH_TYPE_LLDP:
-            return  # ignore LLDP
+        eth = pkt.get_protocol(ethernet.ethernet)
+
+        if eth is None:
+            return
 
         dst = eth.dst
         src = eth.src
 
+        dpid = datapath.id
+
         self.mac_to_port.setdefault(dpid, {})
+
+        # Learn source MAC
         self.mac_to_port[dpid][src] = in_port
 
-        if dst in self.mac_to_port[dpid]:
-            out_port = self.mac_to_port[dpid][dst]
-        else:
-            out_port = ofproto.OFPP_FLOOD
+        # Determine destination port
+        out_port = self.mac_to_port[dpid].get(
+            dst,
+            ofproto.OFPP_FLOOD
+        )
 
-        actions = [parser.OFPActionOutput(out_port)]
+        actions = [
+            parser.OFPActionOutput(out_port)
+        ]
 
-        if out_port != ofproto.OFPP_FLOOD:
-            match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
-            if msg.buffer_id != ofproto.OFP_NO_BUFFER:
-                self.add_flow(datapath, 1, match, actions, msg.buffer_id)
-                return
-            else:
-                self.add_flow(datapath, 1, match, actions)
+        # -----------------------------------------------------
+        # IPv4 traffic
+        # -----------------------------------------------------
+
+        ip = pkt.get_protocol(ipv4.ipv4)
+
+        if ip is not None and out_port != ofproto.OFPP_FLOOD:
+
+            match_kwargs = {
+                "in_port": in_port,
+                "eth_src": src,
+                "eth_dst": dst,
+                "eth_type": ether_types.ETH_TYPE_IP,
+                "ipv4_src": ip.src,
+                "ipv4_dst": ip.dst,
+                "ip_proto": ip.proto,
+            }
+
+            tcp_packet = pkt.get_protocol(tcp.tcp)
+
+            if tcp_packet is not None:
+                match_kwargs["tcp_src"] = tcp_packet.src_port
+                match_kwargs["tcp_dst"] = tcp_packet.dst_port
+
+            udp_packet = pkt.get_protocol(udp.udp)
+
+            if udp_packet is not None:
+                match_kwargs["udp_src"] = udp_packet.src_port
+                match_kwargs["udp_dst"] = udp_packet.dst_port
+
+            match = parser.OFPMatch(**match_kwargs)
+
+            # IPv4 flow
+            self.add_flow(
+                datapath,
+                priority=10,
+                match=match,
+                actions=actions,
+                idle_timeout=30
+            )
+
+        # -----------------------------------------------------
+        # Non-IP / fallback L2 traffic
+        # -----------------------------------------------------
+
+        elif out_port != ofproto.OFPP_FLOOD:
+
+            match = parser.OFPMatch(
+                in_port=in_port,
+                eth_src=src,
+                eth_dst=dst
+            )
+
+            self.add_flow(
+                datapath,
+                priority=1,
+                match=match,
+                actions=actions,
+                idle_timeout=30
+            )
 
         data = None
+
         if msg.buffer_id == ofproto.OFP_NO_BUFFER:
             data = msg.data
 
-        out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
-                                   in_port=in_port, actions=actions, data=data)
+        out = parser.OFPPacketOut(
+            datapath=datapath,
+            buffer_id=msg.buffer_id,
+            in_port=in_port,
+            actions=actions,
+            data=data
+        )
+
         datapath.send_msg(out)
+
+    # ---------------------------------------------------------
+    # Flow statistics monitor
+    # ---------------------------------------------------------
+
+    def _monitor(self):
+
+        while True:
+
+            for datapath in list(self.datapaths.values()):
+
+                self._request_flow_stats(datapath)
+
+                # Process mitigation requests generated by IDS
+                self._process_block_requests(datapath)
+
+            hub.sleep(10)
+
+    def _request_flow_stats(self, datapath):
+
+        parser = datapath.ofproto_parser
+
+        request = parser.OFPFlowStatsRequest(
+            datapath
+        )
+
+        datapath.send_msg(request)
+
+    # ---------------------------------------------------------
+    # Flow statistics reply
+    # ---------------------------------------------------------
+
+    @set_ev_cls(
+        ofp_event.EventOFPFlowStatsReply,
+        MAIN_DISPATCHER
+    )
+    def flow_stats_reply_handler(self, ev):
+
+        body = ev.msg.body
+
+        for stat in body:
+
+            # Ignore table-miss
+            if stat.priority == 0:
+                continue
+
+            # Ignore empty flows
+            if stat.packet_count == 0:
+                continue
+
+            flow = self._convert_flow_stat(stat)
+
+            if flow is None:
+                continue
+
+            flow_key = (
+                flow["src_ip"],
+                flow["dst_ip"],
+                flow["src_port"],
+                flow["dst_port"],
+                flow["protocol"]
+            )
+
+            current_counter = (
+                flow["packet_count"],
+                flow["byte_count"]
+            )
+
+            # Skip an unchanged flow
+            if self.processed_flows.get(flow_key) == current_counter:
+                continue
+
+            self.processed_flows[flow_key] = current_counter
+
+            self._run_detection(flow)
+
+    # ---------------------------------------------------------
+    # Convert OpenFlow statistics to IDS flow format
+    # ---------------------------------------------------------
+
+    def _convert_flow_stat(self, stat):
+
+        fields = stat.match
+
+        try:
+            src_ip = fields.get("ipv4_src")
+            dst_ip = fields.get("ipv4_dst")
+
+            if not src_ip or not dst_ip:
+                return None
+
+            ip_proto = fields.get("ip_proto", 0)
+
+            src_port = 0
+            dst_port = 0
+
+            if ip_proto == 6:
+                src_port = fields.get("tcp_src", 0)
+                dst_port = fields.get("tcp_dst", 0)
+
+                protocol = 6
+
+            elif ip_proto == 17:
+                src_port = fields.get("udp_src", 0)
+                dst_port = fields.get("udp_dst", 0)
+
+                protocol = 17
+
+            elif ip_proto == 1:
+                protocol = 1
+
+            else:
+                protocol = ip_proto
+
+            duration_us = (
+                int(stat.duration_sec) * 1000000
+                + int(stat.duration_nsec / 1000)
+            )
+
+            return {
+                "src_ip": src_ip,
+                "dst_ip": dst_ip,
+                "src_port": src_port,
+                "dst_port": dst_port,
+                "protocol": protocol,
+                "packet_count": int(stat.packet_count),
+                "byte_count": int(stat.byte_count),
+                "flow_duration_us": duration_us,
+            }
+
+        except Exception as exc:
+
+            self.logger.warning(
+                "Unable to convert flow statistics: %s",
+                exc
+            )
+
+            return None
+
+    # ---------------------------------------------------------
+    # Detection
+    # ---------------------------------------------------------
+
+    def _run_detection(self, flow):
+
+        try:
+
+            result = self.detector.detect(flow)
+
+            # Normalize detector field names for the shared
+            # controller/dashboard interface.
+            result["source_ip"] = result.get(
+                "source_ip",
+                result.get("src_ip", flow.get("src_ip"))
+            )
+
+            result["destination_ip"] = result.get(
+                "destination_ip",
+                result.get("dst_ip", flow.get("dst_ip"))
+            )
+
+            result["prediction"] = (
+                "Malicious"
+                if result.get("status") == "Malicious"
+                else "Normal"
+            )
+
+            result["attack_type"] = result.get(
+                "attack",
+                "Benign"
+            )
+
+            result["controller_timestamp"] = datetime.now().isoformat()
+
+            self._save_detection(result)
+
+            self.logger.info(
+                "IDS RESULT: %s | %s -> %s | confidence=%s",
+                result["attack"],
+                result["source_ip"],
+                result["destination_ip"],
+                result["confidence"]
+            )
+
+            # -------------------------------------------------
+            # Automatic mitigation
+            # -------------------------------------------------
+
+            if result["status"] == "Malicious":
+
+                mitigation(
+                    result["attack"],
+                    result["source_ip"]
+                )
+
+                self.logger.warning(
+                    "MITIGATION REQUEST: blocked source %s",
+                    result["source_ip"]
+                )
+
+        except Exception as exc:
+
+            self.logger.exception(
+                "Detection error: %s",
+                exc
+            )
+
+    # ---------------------------------------------------------
+    # Save detection results
+    # ---------------------------------------------------------
+
+    def _save_detection(self, result):
+
+        detections = self._read_json(
+            DETECTIONS_FILE,
+            []
+        )
+
+        detections.append(result)
+
+        # Keep the most recent 200 results
+        detections = detections[-200:]
+
+        self._write_json(
+            DETECTIONS_FILE,
+            detections
+        )
+
+    # ---------------------------------------------------------
+    # Apply actual OpenFlow blocking
+    # ---------------------------------------------------------
+
+    def _process_block_requests(self, datapath):
+
+        requests = self._read_json(
+            BLOCK_REQUEST_FILE,
+            []
+        )
+
+        if not requests:
+            return
+
+        parser = datapath.ofproto_parser
+
+        applied_requests = []
+
+        for request in requests:
+
+            source_ip = request.get("source_ip")
+
+            if not source_ip:
+                continue
+
+            # Drop all IPv4 traffic from malicious source
+            match = parser.OFPMatch(
+                eth_type=ether_types.ETH_TYPE_IP,
+                ipv4_src=source_ip
+            )
+
+            self.add_flow(
+                datapath,
+                priority=100,
+                match=match,
+                actions=[],
+                idle_timeout=0,
+                hard_timeout=0
+            )
+
+            applied_requests.append(source_ip)
+
+            self.logger.warning(
+                "OPENFLOW BLOCK INSTALLED: %s",
+                source_ip
+            )
+
+            blocked_ips = self._read_json(
+                BLOCKED_IP_FILE,
+                []
+            )
+
+            if source_ip not in blocked_ips:
+                blocked_ips.append(source_ip)
+                self._write_json(
+                    BLOCKED_IP_FILE,
+                    blocked_ips
+                )
+
+        # Clear processed requests
+        if applied_requests:
+
+            remaining = [
+                request
+                for request in requests
+                if request.get("source_ip") not in applied_requests
+            ]
+
+            self._write_json(
+                BLOCK_REQUEST_FILE,
+                remaining
+            )
+
+
+if __name__ == "__main__":
+    print(
+        "Run this controller using osken-manager, "
+        "not directly with python."
+    )

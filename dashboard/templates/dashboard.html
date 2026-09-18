@@ -125,7 +125,7 @@
 
                         <div class="bar-group">
                             <div class="bar normal-bar"
-                                 style="height: {{ (summary.normal_packets / summary.total_packets) * 220 }}px;">
+                                 style="height: {{ ((summary.normal_packets / summary.total_packets) * 220) if summary.total_packets > 0 else 0 }}px;">
                                 <span>{{ summary.normal_packets }}</span>
                             </div>
                             <label>Normal</label>
@@ -133,7 +133,7 @@
 
                         <div class="bar-group">
                             <div class="bar attack-bar"
-                                 style="height: {{ (summary.attack_packets / summary.total_packets) * 220 }}px;">
+                                 style="height: {{ ((summary.attack_packets / summary.total_packets) * 220) if summary.total_packets > 0 else 0 }}px;">
                                 <span>{{ summary.attack_packets }}</span>
                             </div>
                             <label>Attacks</label>

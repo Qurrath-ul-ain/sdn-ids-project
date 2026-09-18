@@ -1,75 +1,119 @@
 from flask import Flask, render_template
+import os
+import json
 
 app = Flask(__name__)
 
-# Demo IDS data
-summary = {
-    "total_packets": 500,
-    "normal_packets": 470,
-    "attack_packets": 30,
-    "blocked_ips": 3
-}
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(
+        os.path.abspath(__file__)
+    )
+)
 
-detections = [
-    {
-        "source_ip": "10.0.0.4",
-        "destination_ip": "10.0.0.2",
-        "attack": "Brute Force",
-        "confidence": 96,
-        "status": "Malicious",
-        "protocol": "TCP",
-        "packets": 24
-    },
-    {
-        "source_ip": "10.0.0.5",
-        "destination_ip": "10.0.0.3",
-        "attack": "Botnet",
-        "confidence": 94,
-        "status": "Malicious",
-        "protocol": "TCP",
-        "packets": 108
-    },
-    {
-        "source_ip": "10.0.0.6",
-        "destination_ip": "10.0.0.2",
-        "attack": "Web Attack",
-        "confidence": 93,
-        "status": "Malicious",
-        "protocol": "TCP",
-        "packets": 35
-    },
-    {
-        "source_ip": "10.0.0.1",
-        "destination_ip": "10.0.0.2",
-        "attack": "Benign",
-        "confidence": 95,
-        "status": "Normal",
-        "protocol": "ICMP",
-        "packets": 8
-    }
-]
+RUNTIME_DIR = os.path.join(
+    PROJECT_ROOT,
+    "runtime"
+)
 
-blocked_ips = [
-    {
-        "ip": "10.0.0.4",
-        "attack": "Brute Force",
-        "status": "Blocked"
-    },
-    {
-        "ip": "10.0.0.5",
-        "attack": "Botnet",
-        "status": "Blocked"
-    },
-    {
-        "ip": "10.0.0.6",
-        "attack": "Web Attack",
-        "status": "Blocked"
+DETECTIONS_FILE = os.path.join(
+    RUNTIME_DIR,
+    "detections.json"
+)
+
+BLOCK_FILE = os.path.join(
+    RUNTIME_DIR,
+    "blocked_ips.json"
+)
+
+
+def read_json(filename, default):
+
+    try:
+
+        if not os.path.exists(filename):
+            return default
+
+        with open(filename, "r") as f:
+            return json.load(f)
+
+    except (OSError, json.JSONDecodeError):
+
+        return default
+
+
+def get_dashboard_data():
+
+    detections = read_json(
+        DETECTIONS_FILE,
+        []
+    )
+
+    block_requests = read_json(
+        BLOCK_FILE,
+        []
+    )
+
+    normal_count = sum(
+        1
+        for item in detections
+        if item.get("status") == "Normal"
+    )
+
+    attack_count = sum(
+        1
+        for item in detections
+        if item.get("status") == "Malicious"
+    )
+
+    # Unique currently requested blocked IPs
+    blocked_ips = block_requests
+
+    blocked_details = []
+
+    for ip in blocked_ips:
+
+        attack = "Malicious"
+
+        # Find the latest attack for this IP
+        for item in reversed(detections):
+
+            if item.get("source_ip") == ip:
+                attack = item.get(
+                    "attack",
+                    "Malicious"
+                )
+                break
+
+        blocked_details.append({
+            "ip": ip,
+            "attack": attack,
+            "status": "Blocked"
+        })
+
+    summary = {
+        "total_packets": sum(
+            int(item.get("packet_count", 0))
+            for item in detections
+        ),
+        "normal_packets": normal_count,
+        "attack_packets": attack_count,
+        "blocked_ips": len(blocked_ips)
     }
-]
+
+    return (
+        summary,
+        detections[-50:],
+        blocked_details
+    )
 
 
 @app.route("/")
 def dashboard():
+
+    summary, detections, blocked_ips = (
+        get_dashboard_data()
+    )
+
     return render_template(
         "dashboard.html",
         summary=summary,
@@ -80,6 +124,7 @@ def dashboard():
 
 @app.route("/health")
 def health():
+
     return {
         "status": "running",
         "service": "SDN Healthcare IDS Dashboard"
@@ -87,6 +132,7 @@ def health():
 
 
 if __name__ == "__main__":
+
     app.run(
         host="0.0.0.0",
         port=5000,
