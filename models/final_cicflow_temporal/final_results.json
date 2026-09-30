@@ -1,0 +1,193 @@
+{
+  "experiment": "final_cicflow_temporal",
+  "dataset": "CICFlowMeter",
+  "evaluation_protocol": "class-stratified temporal evaluation",
+  "protocol_disclaimer": "This is a class-stratified temporal evaluation protocol; it is NOT a global chronological deployment stream simulation.",
+  "terminology_note": "Sequences are chronological temporal flow windows constructed within isolated class partitions. They are not reconstructed network sessions.",
+  "timestamp_utc": "2026-09-07T16:34:49.095083+00:00",
+  "sequence_length": 10,
+  "stride": 1,
+  "features": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "input_shape": [
+    10,
+    5
+  ],
+  "classes": [
+    "Benign",
+    "Brute Force",
+    "Botnet",
+    "Web Attack"
+  ],
+  "train_sequences": 2560,
+  "validation_sequences": 520,
+  "test_sequences": 452,
+  "test_accuracy": 1.0,
+  "macro_precision": 1.0,
+  "macro_recall": 1.0,
+  "macro_f1": 1.0,
+  "weighted_precision": 1.0,
+  "weighted_recall": 1.0,
+  "weighted_f1": 1.0,
+  "per_class": {
+    "Benign": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 113
+    },
+    "Brute Force": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 113
+    },
+    "Botnet": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 113
+    },
+    "Web Attack": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 113
+    }
+  },
+  "confusion_matrix": [
+    [
+      113,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      113,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      113,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      113
+    ]
+  ],
+  "baseline_accuracy": 0.9744,
+  "accuracy_comparison": {
+    "original_baseline": 0.9744,
+    "final_leakage_controlled": 1.0,
+    "difference": 0.0256,
+    "note": "Final model evaluated under strict class-stratified temporal boundaries with 9-flow quarantine and zero partition leakage."
+  },
+  "validation_metrics": {
+    "accuracy": 1.0,
+    "macro_precision": 1.0,
+    "macro_recall": 1.0,
+    "macro_f1": 1.0,
+    "weighted_precision": 1.0,
+    "weighted_recall": 1.0,
+    "weighted_f1": 1.0,
+    "per_class": {
+      "Benign": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "support": 130
+      },
+      "Brute Force": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "support": 130
+      },
+      "Botnet": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "support": 130
+      },
+      "Web Attack": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "support": 130
+      }
+    },
+    "confusion_matrix": [
+      [
+        130,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        130,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        130,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        130
+      ]
+    ],
+    "total_evaluated": 520,
+    "correct_predictions": 520,
+    "incorrect_predictions": 0
+  },
+  "training_configuration": {
+    "environment": {
+      "python_version": "3.11.7 | packaged by Anaconda, Inc. | (main, Dec 15 2023, 18:05:47) [MSC v.1916 64 bit (AMD64)]",
+      "tensorflow_version": "2.13.0",
+      "numpy_version": "1.26.4",
+      "sklearn_version": "1.2.2",
+      "random_seed": 42
+    },
+    "model_name": "CNN_LSTM_Attention_Final",
+    "architecture_summary": [
+      "Input(shape=(10, 5))",
+      "Conv1D(32, 3, padding='same', activation='relu')",
+      "MaxPooling1D(2)",
+      "LSTM(64, return_sequences=True)",
+      "Attention(Dense(1))",
+      "Dense(32, activation='relu')",
+      "Dropout(0.3)",
+      "Dense(4, activation='softmax')"
+    ],
+    "total_parameters": 27621,
+    "optimizer": "Adam",
+    "learning_rate": 0.001,
+    "loss": "sparse_categorical_crossentropy",
+    "batch_size": 64,
+    "max_epochs": 20,
+    "epochs_completed": 13,
+    "early_stopping": {
+      "monitor": "val_loss",
+      "patience": 3,
+      "restore_best_weights": true
+    },
+    "training_time_seconds": 5.71
+  }
+}

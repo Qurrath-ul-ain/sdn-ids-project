@@ -219,3 +219,10 @@ __marimo__/
 dashboard/venv/
 __pycache__/
 *.pyc
+
+# Runtime/generated IDS data
+runtime/*.json
+
+# Local backup files
+*.backup
+*.before-*

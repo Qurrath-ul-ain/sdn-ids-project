@@ -1,0 +1,217 @@
+{
+  "dataset_name": "final_cicflow_temporal_dataset",
+  "evaluation_protocol": "class-stratified temporal evaluation",
+  "protocol_disclaimer": "This is a class-stratified temporal evaluation protocol; it is NOT a global chronological deployment stream simulation.",
+  "creation_timestamp_utc": "2026-09-07T16:30:59.783593+00:00",
+  "source_files": [
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Thursday-22-02-2018_TrafficForML_CICFlowMeter.csv",
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+    "C:\\Users\\Shinjini\\Downloads\\archive\\Friday-02-03-2018_TrafficForML_CICFlowMeter.csv"
+  ],
+  "invalid_timestamp_rows": 14,
+  "label_mapping": {
+    "Benign": 0,
+    "Brute Force": 1,
+    "Botnet": 2,
+    "Web Attack": 3
+  },
+  "raw_label_mapping": {
+    "Benign": "Benign",
+    "Bot": "Botnet",
+    "FTP-BruteForce": "Brute Force",
+    "SSH-Bruteforce": "Brute Force",
+    "Brute Force -Web": "Web Attack",
+    "Brute Force -XSS": "Web Attack",
+    "SQL Injection": "Web Attack"
+  },
+  "feature_names": [
+    "destination_port",
+    "protocol",
+    "packet_count",
+    "byte_count",
+    "flow_duration_us"
+  ],
+  "input_shape": [
+    10,
+    5
+  ],
+  "target_flows_per_class": 928,
+  "total_sampled_flows": 3712,
+  "sampling_method": "systematic_uniform_temporal_striding",
+  "random_sampling": false,
+  "sequence_length": 10,
+  "stride": 1,
+  "split_method": "class_stratified_chronological_70_15_15",
+  "quarantine_flows_per_boundary": 9,
+  "total_quarantined_flows": 72,
+  "flow_counts": {
+    "total_sampled": 3712,
+    "train": 2596,
+    "quarantine_1": 36,
+    "validation": 556,
+    "quarantine_2": 36,
+    "test": 488,
+    "per_class": {
+      "train": 649,
+      "quarantine_1": 9,
+      "validation": 139,
+      "quarantine_2": 9,
+      "test": 122
+    }
+  },
+  "sequence_counts": {
+    "train": 2560,
+    "validation": 520,
+    "test": 452,
+    "total": 3532,
+    "per_class": {
+      "train": {
+        "Benign": 640,
+        "Brute Force": 640,
+        "Botnet": 640,
+        "Web Attack": 640
+      },
+      "validation": {
+        "Benign": 130,
+        "Brute Force": 130,
+        "Botnet": 130,
+        "Web Attack": 130
+      },
+      "test": {
+        "Benign": 113,
+        "Brute Force": 113,
+        "Botnet": 113,
+        "Web Attack": 113
+      }
+    }
+  },
+  "scaler_fit_partition": "train",
+  "partition_timestamp_ranges": {
+    "Benign": {
+      "train": {
+        "flows": 649,
+        "min": "2018-02-14 01:00:00",
+        "max": "2018-02-23 10:40:19"
+      },
+      "quarantine_1": {
+        "flows": 9,
+        "min": "2018-02-23 10:42:09",
+        "max": "2018-02-23 10:56:50"
+      },
+      "validation": {
+        "flows": 139,
+        "min": "2018-02-23 10:57:59",
+        "max": "2018-03-02 04:19:51"
+      },
+      "quarantine_2": {
+        "flows": 9,
+        "min": "2018-03-02 04:23:18",
+        "max": "2018-03-02 04:47:23"
+      },
+      "test": {
+        "flows": 122,
+        "min": "2018-03-02 04:50:36",
+        "max": "2018-03-02 12:59:59"
+      }
+    },
+    "Brute Force": {
+      "train": {
+        "flows": 649,
+        "min": "2018-02-14 02:01:21",
+        "max": "2018-02-14 11:12:58"
+      },
+      "quarantine_1": {
+        "flows": 9,
+        "min": "2018-02-14 11:13:10",
+        "max": "2018-02-14 11:14:49"
+      },
+      "validation": {
+        "flows": 139,
+        "min": "2018-02-14 11:15:01",
+        "max": "2018-02-14 11:43:30"
+      },
+      "quarantine_2": {
+        "flows": 9,
+        "min": "2018-02-14 11:43:42",
+        "max": "2018-02-14 11:45:21"
+      },
+      "test": {
+        "flows": 122,
+        "min": "2018-02-14 11:45:33",
+        "max": "2018-02-14 12:10:31"
+      }
+    },
+    "Botnet": {
+      "train": {
+        "flows": 649,
+        "min": "2018-03-02 01:00:00",
+        "max": "2018-03-02 11:18:50"
+      },
+      "quarantine_1": {
+        "flows": 9,
+        "min": "2018-03-02 11:18:56",
+        "max": "2018-03-02 11:19:56"
+      },
+      "validation": {
+        "flows": 139,
+        "min": "2018-03-02 11:20:04",
+        "max": "2018-03-02 11:43:56"
+      },
+      "quarantine_2": {
+        "flows": 9,
+        "min": "2018-03-02 11:44:31",
+        "max": "2018-03-02 11:49:07"
+      },
+      "test": {
+        "flows": 122,
+        "min": "2018-03-02 11:49:41",
+        "max": "2018-03-02 12:59:59"
+      }
+    },
+    "Web Attack": {
+      "train": {
+        "flows": 649,
+        "min": "2018-02-22 01:51:39",
+        "max": "2018-02-23 10:16:53"
+      },
+      "quarantine_1": {
+        "flows": 9,
+        "min": "2018-02-23 10:16:53",
+        "max": "2018-02-23 10:18:46"
+      },
+      "validation": {
+        "flows": 139,
+        "min": "2018-02-23 10:18:47",
+        "max": "2018-02-23 10:41:20"
+      },
+      "quarantine_2": {
+        "flows": 9,
+        "min": "2018-02-23 10:41:20",
+        "max": "2018-02-23 10:42:40"
+      },
+      "test": {
+        "flows": 122,
+        "min": "2018-02-23 10:42:42",
+        "max": "2018-02-23 11:02:58"
+      }
+    }
+  },
+  "leakage_checks": {
+    "Benign_train_val_isolated": true,
+    "Benign_val_test_isolated": true,
+    "Brute Force_train_val_isolated": true,
+    "Brute Force_val_test_isolated": true,
+    "Botnet_train_val_isolated": true,
+    "Botnet_val_test_isolated": true,
+    "Web Attack_train_val_isolated": true,
+    "Web Attack_val_test_isolated": true,
+    "scaler_train_only": true,
+    "quarantine_flows_per_boundary": 9,
+    "quarantine_total_flows": 72,
+    "sequence_boundary_crossing": 0,
+    "invalid_1970_timestamps_present": 0,
+    "target_flows_exact": true,
+    "sequence_counts_exact": true
+  }
+}
