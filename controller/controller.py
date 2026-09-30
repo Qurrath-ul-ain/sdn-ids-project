@@ -25,7 +25,6 @@ from os_ken.lib.packet import udp
 from os_ken.lib.packet import ether_types
 from os_ken.lib import hub
 
-from detection.detector import ThreatDetector
 from detection.ml_detector import MLDetector
 from mitigation.mitigate import mitigation
 
@@ -46,7 +45,6 @@ class HealthcareSwitch(app_manager.OSKenApp):
         self.mac_to_port = {}
         self.datapaths = {}
 
-        self.detector = ThreatDetector()
         self.ml_detector = MLDetector()
 
         # Prevent repeatedly processing the same unchanged flow
@@ -436,37 +434,11 @@ class HealthcareSwitch(app_manager.OSKenApp):
     def _run_detection(self, flow):
 
         try:
-            # Feed the live OpenFlow flow into the trained
-            # CNN-LSTM-Attention temporal detector.
-            rule_result = self.detector.detect(flow)
+            # CNN-LSTM-Attention is the sole detection mechanism.
+            # Each live flow is added to the temporal sequence.
             ml_result = self.ml_detector.add_flow(flow)
 
-            # Rule-based detection can act immediately while
-            # the ML detector continues collecting its 10-flow sequence.
-            if rule_result["attack"] != "Benign":
-                rule_status = rule_result["status"]
-
-                self.logger.info(
-                    "RULE IDS RESULT: %s | %s -> %s | confidence=%.2f%% | reason=%s",
-                    rule_result["attack"],
-                    rule_result["src_ip"],
-                    rule_result["dst_ip"],
-                    rule_result["confidence"],
-                    rule_result["reason"],
-                )
-
-                mitigation(
-                    rule_result["attack"],
-                    rule_result["src_ip"],
-                )
-
-                self.logger.info(
-                    "RULE MITIGATION REQUEST: blocked source %s",
-                    rule_result["src_ip"],
-                )
-
-            # The model requires 10 flows for one prediction.
-            # Keep collecting flows even after a rule-based detection.
+            # The model requires 10 flows before making a prediction.
             if ml_result is None:
                 self.logger.info(
                     "ML BUFFER: %s -> %s | waiting for 10 flows",
@@ -475,24 +447,11 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 )
                 return
 
-            ml_prediction = ml_result["prediction"]
-            ml_confidence = ml_result["confidence"]
+            prediction = ml_result["prediction"]
+            confidence = ml_result["confidence"]
 
             source_ip = flow.get("src_ip")
             destination_ip = flow.get("dst_ip")
-
-            # Hybrid decision:
-            # use the rule detector when it identifies a
-            # specific attack pattern, while retaining the
-            # trained ML prediction separately.
-            rule_attack = rule_result["attack"]
-
-            if rule_attack != "Benign":
-                prediction = rule_attack
-                confidence = rule_result["confidence"] / 100.0
-            else:
-                prediction = ml_prediction
-                confidence = ml_confidence
 
             status = (
                 "Normal"
@@ -524,34 +483,30 @@ class HealthcareSwitch(app_manager.OSKenApp):
             self._save_detection(result)
 
             self.logger.info(
-                "UNIFIED IDS RESULT: %s | %s -> %s | confidence=%.2f%%",
+                "CNN-LSTM-ATTENTION RESULT: %s | %s -> %s | confidence=%.2f%%",
                 prediction,
                 source_ip,
                 destination_ip,
                 confidence * 100,
             )
 
-            # -------------------------------------------------
-            # Automatic mitigation
-            # -------------------------------------------------
-
-            if status == "Malicious":
-
+            # Mitigation is triggered only by the CNN-LSTM-Attention
+            # prediction is produced exclusively by the CNN-LSTM-Attention model.
+            if prediction != "Benign":
                 mitigation(
                     prediction,
-                    source_ip
+                    source_ip,
                 )
 
-                self.logger.warning(
-                    "MITIGATION REQUEST: blocked source %s",
-                    source_ip
+                self.logger.info(
+                    "ML MITIGATION REQUEST: blocked source %s",
+                    source_ip,
                 )
 
         except Exception as exc:
-
             self.logger.exception(
-                "ML detection error: %s",
-                exc
+                "CNN-LSTM-Attention detection failed: %s",
+                exc,
             )
 
     # ---------------------------------------------------------
