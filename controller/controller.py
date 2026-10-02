@@ -561,12 +561,15 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 confidence * 100,
             )
 
-            if prediction != "Benign":
+            if (
+                prediction != "Benign"
+                and source_ip == "192.168.100.10"
+            ):
                 mitigation(prediction, source_ip)
 
                 self.logger.info(
                     "CNN-LSTM-ATTENTION MITIGATION REQUEST: "
-                    "blocked source %s",
+                    "blocked external attacker %s",
                     source_ip,
                 )
 
