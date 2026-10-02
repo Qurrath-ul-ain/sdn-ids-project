@@ -209,7 +209,7 @@ def main():
         )
 
     elif args.mode == "webattack":
-        web_attack_simulation(args.url)
+        web_attack_simulation(f"http://{args.target}:{args.port}")
 
 
 if __name__ == "__main__":
