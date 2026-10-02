@@ -25,7 +25,7 @@ from os_ken.lib.packet import udp
 from os_ken.lib.packet import ether_types
 from os_ken.lib import hub
 
-from detection.ml_detector import MLDetector
+from inference.cnn_lstm_attention import CNNLSTMAttention
 from mitigation.mitigate import mitigation
 
 
@@ -45,7 +45,10 @@ class HealthcareSwitch(app_manager.OSKenApp):
         self.mac_to_port = {}
         self.datapaths = {}
 
-        self.ml_detector = MLDetector()
+        self.cnn_lstm_model = CNNLSTMAttention()
+        self.ml_sequence = []
+        self.ml_sequences = {}
+        self.ml_sequence_counters = {}
 
         # Prevent repeatedly processing the same unchanged flow
         self.processed_flows = {}
@@ -344,6 +347,12 @@ class HealthcareSwitch(app_manager.OSKenApp):
             if flow is None:
                 continue
 
+            # CNN-LSTM-Attention is trained on TCP/UDP flow records.
+            # Ignore ICMP/control traffic so unrelated ping flows
+            # cannot contaminate the ML sequence.
+            if flow.get("protocol") not in (6, 17):
+                continue
+
             flow_key = (
                 flow["src_ip"],
                 flow["dst_ip"],
@@ -434,21 +443,82 @@ class HealthcareSwitch(app_manager.OSKenApp):
     def _run_detection(self, flow):
 
         try:
-            # CNN-LSTM-Attention is the sole detection mechanism.
-            # Each live flow is added to the temporal sequence.
-            ml_result = self.ml_detector.add_flow(flow)
+            sequence_key = (
+                flow.get("src_ip"),
+                flow.get("dst_ip"),
+                flow.get("protocol"),
+            )
 
-            # The model requires 10 flows before making a prediction.
-            if ml_result is None:
-                self.logger.info(
-                    "ML BUFFER: %s -> %s | waiting for 10 flows",
-                    flow.get("src_ip"),
-                    flow.get("dst_ip"),
-                )
+            if sequence_key not in self.ml_sequences:
+                self.ml_sequences[sequence_key] = []
+
+            current_sample = [
+                flow.get("dst_port", 0),
+                flow.get("protocol", 0),
+                flow.get("packet_count", 0),
+                flow.get("byte_count", 0),
+                flow.get("flow_duration_us", 0),
+            ]
+
+            sequence = self.ml_sequences[sequence_key]
+
+            if sequence:
+                previous = sequence[-1]
+
+                previous_sample = [
+                    previous.get("dst_port", 0),
+                    previous.get("protocol", 0),
+                    previous.get("packet_count", 0),
+                    previous.get("byte_count", 0),
+                    previous.get("flow_duration_us", 0),
+                ]
+
+                if current_sample == previous_sample:
+                    return
+
+            sequence.append(flow)
+
+            self.logger.info(
+                "CNN-LSTM-Attention: collected %d/10 samples for %s -> %s",
+                len(sequence),
+                flow.get("src_ip"),
+                flow.get("dst_ip"),
+            )
+
+            if len(sequence) < 10:
                 return
 
-            prediction = ml_result["prediction"]
-            confidence = ml_result["confidence"]
+            model_sequence = []
+
+            for item in sequence[-10:]:
+                model_sequence.append([
+                    item.get("dst_port", 0),
+                    item.get("protocol", 0),
+                    item.get("packet_count", 0),
+                    item.get("byte_count", 0),
+                    item.get("flow_duration_us", 0),
+                ])
+
+            print(
+                "\n========== CNN-LSTM-Attention INPUT SEQUENCE =========="
+            )
+
+            for index, row in enumerate(model_sequence, start=1):
+                print(
+                    f"{index}: "
+                    f"dst_port={row[0]} | "
+                    f"protocol={row[1]} | "
+                    f"packets={row[2]} | "
+                    f"bytes={row[3]} | "
+                    f"duration_us={row[4]}"
+                )
+
+            print("========================================================")
+
+            result = self.cnn_lstm_model.predict(model_sequence)
+
+            prediction = result["prediction"]
+            confidence = result["confidence"]
 
             source_ip = flow.get("src_ip")
             destination_ip = flow.get("dst_ip")
@@ -459,7 +529,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 else "Malicious"
             )
 
-            result = {
+            detection = {
                 "source_ip": source_ip,
                 "destination_ip": destination_ip,
                 "src_ip": source_ip,
@@ -475,12 +545,13 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 "prediction": status,
                 "status": status,
                 "confidence": round(confidence * 100, 2),
-                "probabilities": ml_result["probabilities"],
-                "sequence_length": ml_result["sequence_length"],
+                "probabilities": result["probabilities"],
+                "sequence_length": 10,
+                "detection_model": "CNN-LSTM-Attention",
                 "controller_timestamp": datetime.now().isoformat(),
             }
 
-            self._save_detection(result)
+            self._save_detection(detection)
 
             self.logger.info(
                 "CNN-LSTM-ATTENTION RESULT: %s | %s -> %s | confidence=%.2f%%",
@@ -490,28 +561,22 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 confidence * 100,
             )
 
-            # Mitigation is triggered only by the CNN-LSTM-Attention
-            # prediction is produced exclusively by the CNN-LSTM-Attention model.
             if prediction != "Benign":
-                mitigation(
-                    prediction,
+                mitigation(prediction, source_ip)
+
+                self.logger.info(
+                    "CNN-LSTM-ATTENTION MITIGATION REQUEST: "
+                    "blocked source %s",
                     source_ip,
                 )
 
-                self.logger.info(
-                    "ML MITIGATION REQUEST: blocked source %s",
-                    source_ip,
-                )
+            self.ml_sequences[sequence_key] = []
 
         except Exception as exc:
             self.logger.exception(
                 "CNN-LSTM-Attention detection failed: %s",
-                exc,
+                exc
             )
-
-    # ---------------------------------------------------------
-    # Save detection results
-    # ---------------------------------------------------------
 
     def _save_detection(self, result):
 

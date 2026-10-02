@@ -106,21 +106,19 @@ def botnet_simulation(target, port, workers, requests):
 
 def web_attack_simulation(base_url):
     """
-    Generate abnormal HTTP request patterns for IDS testing.
-
-    These are harmless test requests and do not contain
-    destructive SQL injection or exploit payloads.
+    Generate harmless abnormal HTTP request patterns
+    for IDS testing.
     """
+    print(f"\\n[+] Simulating web-attack traffic to {base_url}")
+
     test_paths = [
         "/admin",
         "/login",
         "/robots.txt",
         "/unknown-page",
         "/search?q=test",
-        "/search?q=aaaaaaaaaaaaaaaaaaaaaaaa"
+        "/search?q=aaaaaaaaaaaaaaaaaaaaaaaa",
     ]
-
-    print(f"\n[+] Simulating web-attack traffic to {base_url}")
 
     for path in test_paths:
         url = base_url.rstrip("/") + path
@@ -132,7 +130,6 @@ def web_attack_simulation(base_url):
             print(f"{url} -> {error}")
 
         time.sleep(0.5)
-
 
 def main():
     parser = argparse.ArgumentParser(
