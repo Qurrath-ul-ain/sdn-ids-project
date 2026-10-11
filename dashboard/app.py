@@ -53,14 +53,15 @@ def get_dashboard_data():
         []
     )
 
+    # Count packets, not detection records.
     normal_count = sum(
-        1
+        int(item.get("packet_count", 0))
         for item in detections
         if item.get("status") == "Normal"
     )
 
     attack_count = sum(
-        1
+        int(item.get("packet_count", 0))
         for item in detections
         if item.get("status") == "Malicious"
     )

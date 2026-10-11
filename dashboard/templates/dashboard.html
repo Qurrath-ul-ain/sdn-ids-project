@@ -211,6 +211,7 @@
                                 <th>Source IP</th>
                                 <th>Destination IP</th>
                                 <th>Attack Type</th>
+                                <th>Detection Time</th>
                                 <th>Confidence</th>
                                 <th>Status</th>
                                 <th>Protocol</th>
@@ -255,6 +256,10 @@
                                 </td>
 
                                 <td>
+                                    {{ detection.controller_timestamp|default("Not recorded", true)|replace("T", " ") }}
+                                </td>
+
+                                <td>
                                     <div class="confidence">
                                         <div class="confidence-bar">
                                             <span style="width: {{ detection.confidence }}%;"></span>
@@ -282,7 +287,7 @@
 
                                 <td>{{ detection.protocol }}</td>
 
-                                <td>{{ detection.packets }}</td>
+                                <td>{{ detection.packet_count|default(0, true) }}</td>
 
                             </tr>
 

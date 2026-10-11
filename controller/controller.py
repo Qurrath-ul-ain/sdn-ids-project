@@ -53,6 +53,10 @@ class HealthcareSwitch(app_manager.OSKenApp):
         # Prevent repeatedly processing the same unchanged flow
         self.processed_flows = {}
 
+        # REAL-TIME TCP SYN BURST DETECTOR STATE
+        self.syn_attempts = {}
+        self.syn_detected = set()
+
         os.makedirs(RUNTIME_DIR, exist_ok=True)
 
         if not os.path.exists(DETECTIONS_FILE):
@@ -126,6 +130,31 @@ class HealthcareSwitch(app_manager.OSKenApp):
             datapath.id
         )
 
+        # Restore saved mitigation rules after switch reconnects
+        blocked_ips = self._read_json(BLOCKED_IP_FILE, [])
+        for source_ip in blocked_ips:
+            if not isinstance(source_ip, str) or not source_ip:
+                continue
+
+            block_match = parser.OFPMatch(
+                eth_type=ether_types.ETH_TYPE_IP,
+                ipv4_src=source_ip
+            )
+
+            self.add_flow(
+                datapath,
+                priority=100,
+                match=block_match,
+                actions=[],
+                idle_timeout=0,
+                hard_timeout=0
+            )
+
+            self.logger.warning(
+                "RESTORED OPENFLOW BLOCK: %s",
+                source_ip
+            )
+
     @set_ev_cls(
         ofp_event.EventOFPStateChange,
         [MAIN_DISPATCHER, DEAD_DISPATCHER]
@@ -175,6 +204,13 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         datapath.send_msg(mod)
 
+        self.logger.info(
+            "FLOW_INSTALL: dpid=%s priority=%s match=%s",
+            datapath.id,
+            priority,
+            match,
+        )
+
     # ---------------------------------------------------------
     # Packet processing
     # ---------------------------------------------------------
@@ -189,6 +225,12 @@ class HealthcareSwitch(app_manager.OSKenApp):
         parser = datapath.ofproto_parser
 
         in_port = msg.match["in_port"]
+
+        self.logger.info(
+            "PACKET_IN: dpid=%s in_port=%s",
+            datapath.id,
+            in_port,
+        )
 
         pkt = packet.Packet(msg.data)
 
@@ -237,6 +279,57 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
             tcp_packet = pkt.get_protocol(tcp.tcp)
 
+            # REAL-TIME TCP SYN BURST DETECTOR
+            # Detect repeated connection starts independently of flow counters.
+            if (
+                tcp_packet is not None
+                and (tcp_packet.bits & 0x02)
+                and not (tcp_packet.bits & 0x10)
+            ):
+                now = datetime.now().timestamp()
+                syn_key = (ip.src, ip.dst, tcp_packet.dst_port)
+
+                recent = [
+                    t for t in self.syn_attempts.get(syn_key, [])
+                    if now - t <= 10
+                ]
+                recent.append(now)
+                self.syn_attempts[syn_key] = recent
+
+                if len(recent) >= 10 and syn_key not in self.syn_detected:
+                    self.syn_detected.add(syn_key)
+
+                    detection = {
+                        "source_ip": ip.src,
+                        "destination_ip": ip.dst,
+                        "src_ip": ip.src,
+                        "dst_ip": ip.dst,
+                        "src_port": tcp_packet.src_port,
+                        "dst_port": tcp_packet.dst_port,
+                        "protocol": 6,
+                        "packet_count": len(recent),
+                        "byte_count": 0,
+                        "flow_duration_us": 0,
+                        "attack": "Brute Force",
+                        "attack_type": "Brute Force",
+                        "prediction": "Malicious",
+                        "status": "Malicious",
+                        "confidence": 99.0,
+                        "probabilities": {},
+                        "sequence_length": 0,
+                        "detection_model": "TCP SYN Burst Heuristic",
+                        "controller_timestamp": datetime.now().isoformat(),
+                    }
+
+                    self._save_detection(detection)
+                    mitigation("Brute Force", ip.src)
+
+                    self.logger.warning(
+                        "REAL-TIME BRUTE-FORCE ALERT: %s -> %s:%s "
+                        "(%s TCP SYN attempts in 10 seconds)",
+                        ip.src, ip.dst, tcp_packet.dst_port, len(recent)
+                    )
+
             if tcp_packet is not None:
                 match_kwargs["tcp_src"] = tcp_packet.src_port
                 match_kwargs["tcp_dst"] = tcp_packet.dst_port
@@ -255,7 +348,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 priority=10,
                 match=match,
                 actions=actions,
-                idle_timeout=10
+                idle_timeout=0
             )
 
         # -----------------------------------------------------
@@ -275,7 +368,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 priority=1,
                 match=match,
                 actions=actions,
-                idle_timeout=1
+                idle_timeout=15
             )
 
         data = None
@@ -302,6 +395,11 @@ class HealthcareSwitch(app_manager.OSKenApp):
         while True:
 
             for datapath in list(self.datapaths.values()):
+
+                self.logger.info(
+                    "FLOW_STATS_REQUEST: requesting stats from dpid=%s",
+                    datapath.id
+                )
 
                 self._request_flow_stats(datapath)
 
@@ -332,19 +430,35 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         body = ev.msg.body
 
+        self.logger.info(
+            "FLOW_STATS_REPLY: dpid=%s flows=%d",
+            ev.msg.datapath.id,
+            len(body)
+        )
+
         for stat in body:
 
-            # Ignore table-miss
+            self.logger.info(
+                "FLOW_STAT_RAW: priority=%s packets=%s bytes=%s match=%s",
+                stat.priority,
+                stat.packet_count,
+                stat.byte_count,
+                stat.match
+            )
+
+            # Ignore table-miss only after logging it.
             if stat.priority == 0:
                 continue
 
-            # Ignore empty flows
+            # Ignore empty flows after logging them.
             if stat.packet_count == 0:
                 continue
 
             flow = self._convert_flow_stat(stat)
 
             if flow is None:
+                # Expected for Ethernet-only flows without IPv4 fields.
+                # Genuine conversion exceptions are logged by the converter.
                 continue
 
             # CNN-LSTM-Attention is trained on TCP/UDP flow records.
@@ -366,10 +480,14 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 flow["byte_count"]
             )
 
-            # Store the latest counter for monitoring/debugging.
-            # Every flow-stat observation is passed to the temporal
-            # ML detector so that it can build its 10-flow window.
+            # Process a flow again only when its packet or byte
+            # counters change. Duration alone must not create
+            # duplicate temporal ML samples.
+            previous_counter = self.processed_flows.get(flow_key)
             self.processed_flows[flow_key] = current_counter
+
+            if previous_counter == current_counter:
+                continue
 
             self._run_detection(flow)
 
@@ -411,9 +529,20 @@ class HealthcareSwitch(app_manager.OSKenApp):
             else:
                 protocol = ip_proto
 
-            duration_us = (
-                int(stat.duration_sec) * 1000000
-                + int(stat.duration_nsec / 1000)
+            # Estimate duration from when this controller first observed
+            # this exact flow, rather than using potentially stale switch age.
+            if not hasattr(self, "_flow_first_seen"):
+                self._flow_first_seen = {}
+
+            flow_identity = (
+                src_ip, dst_ip, src_port, dst_port, protocol
+            )
+            now = datetime.now().timestamp()
+            first_seen = self._flow_first_seen.setdefault(
+                flow_identity, now
+            )
+            duration_us = max(
+                0, int((now - first_seen) * 1000000)
             )
 
             return {
@@ -446,6 +575,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
             sequence_key = (
                 flow.get("src_ip"),
                 flow.get("dst_ip"),
+                flow.get("dst_port"),
                 flow.get("protocol"),
             )
 
@@ -563,13 +693,13 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
             if (
                 prediction != "Benign"
-                and source_ip == "192.168.100.10"
+                and source_ip in {"10.0.0.4", "192.168.100.10"}
             ):
                 mitigation(prediction, source_ip)
 
                 self.logger.info(
                     "CNN-LSTM-ATTENTION MITIGATION REQUEST: "
-                    "blocked external attacker %s",
+                    "blocked configured attacker source %s",
                     source_ip,
                 )
 
