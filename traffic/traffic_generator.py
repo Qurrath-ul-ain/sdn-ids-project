@@ -76,10 +76,14 @@ def brute_force_simulation(target, port, attempts):
         f"against {target}:{port}"
     )
 
+    import time
+
     for i in range(attempts):
         tcp_connection_attempt(target, port)
+        time.sleep(0.05)
 
     print(f"[+] Completed {attempts} connection attempts")
+    print("[i] Check the controller terminal for the detection alert.")
 
 
 def botnet_simulation(target, port, workers, requests):
@@ -209,7 +213,8 @@ def main():
         )
 
     elif args.mode == "webattack":
-        web_attack_simulation(f"http://{args.target}:{args.port}")
+        base_url = args.url if args.url != "http://10.0.0.2" else f"http://{args.target}:{args.port}"
+        web_attack_simulation(base_url)
 
 
 if __name__ == "__main__":

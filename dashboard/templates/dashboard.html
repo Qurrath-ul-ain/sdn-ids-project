@@ -67,7 +67,7 @@
             <div class="section-heading">
                 <div>
                     <h2>Network Overview</h2>
-                    <p>Current traffic and threat detection summary</p>
+                    <p>Live traffic and threat detection summary</p>
                 </div>
             </div>
 
@@ -78,24 +78,24 @@
                 <div class="card">
                     <div class="card-icon blue">📦</div>
                     <div>
-                        <span>Total Packets</span>
-                        <strong>{{ summary.total_packets }}</strong>
+                        <span>Total Detection Records</span>
+                        <strong>{{ summary.total_detections }}</strong>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-icon green">✓</div>
                     <div>
-                        <span>Normal Traffic</span>
-                        <strong>{{ summary.normal_packets }}</strong>
+                        <span>Benign Detections</span>
+                        <strong>{{ summary.benign_detections }}</strong>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-icon red">⚠</div>
                     <div>
-                        <span>Detected Attacks</span>
-                        <strong>{{ summary.attack_packets }}</strong>
+                        <span>Recorded Attack Detections</span>
+                        <strong>{{ summary.attack_detections }}</strong>
                     </div>
                 </div>
 
@@ -125,16 +125,16 @@
 
                         <div class="bar-group">
                             <div class="bar normal-bar"
-                                 style="height: {{ ((summary.normal_packets / summary.total_packets) * 220) if summary.total_packets > 0 else 0 }}px;">
-                                <span>{{ summary.normal_packets }}</span>
+                                 style="height: {{ ((summary.benign_detections / summary.total_detections) * 220) if summary.total_detections > 0 else 0 }}px;">
+                                <span>{{ summary.benign_detections }}</span>
                             </div>
                             <label>Normal</label>
                         </div>
 
                         <div class="bar-group">
                             <div class="bar attack-bar"
-                                 style="height: {{ ((summary.attack_packets / summary.total_packets) * 220) if summary.total_packets > 0 else 0 }}px;">
-                                <span>{{ summary.attack_packets }}</span>
+                                 style="height: {{ ((summary.attack_detections / summary.total_detections) * 220) if summary.total_detections > 0 else 0 }}px;">
+                                <span>{{ summary.attack_detections }}</span>
                             </div>
                             <label>Attacks</label>
                         </div>
@@ -156,28 +156,20 @@
 
                         <div class="donut">
                             <div class="donut-center">
-                                <strong>3</strong>
-                                <span>Threats</span>
+                                <strong>{{ summary.category_total }}</strong>
+                                <span>Detections</span>
                             </div>
                         </div>
 
                         <div class="legend">
-
+                            {% for category in summary.attack_categories %}
                             <div>
-                                <span class="legend-dot brute"></span>
-                                Brute Force
+                                <span class="legend-dot {% if category.name == 'Brute Force' %}brute{% elif category.name == 'Botnet' %}botnet{% else %}web{% endif %}"></span>
+                                {{ category.name }} ({{ category.count }})
                             </div>
-
-                            <div>
-                                <span class="legend-dot botnet"></span>
-                                Botnet
-                            </div>
-
-                            <div>
-                                <span class="legend-dot web"></span>
-                                Web Attack
-                            </div>
-
+                            {% else %}
+                            <div>No attack categories recorded</div>
+                            {% endfor %}
                         </div>
 
                     </div>
@@ -256,7 +248,7 @@
                                 </td>
 
                                 <td>
-                                    {{ detection.controller_timestamp|default("Not recorded", true)|replace("T", " ") }}
+                                    {{ (detection.controller_timestamp or detection.timestamp or detection.detection_time or "Not recorded")|replace("T", " ") }}
                                 </td>
 
                                 <td>

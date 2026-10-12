@@ -48,6 +48,8 @@ class HealthcareSwitch(app_manager.OSKenApp):
         self.cnn_lstm_model = CNNLSTMAttention()
         self.ml_sequence = []
         self.ml_sequences = {}
+        # Track flow identities already used in a model window.
+        self.ml_completed_flow_keys = set()
         self.ml_sequence_counters = {}
 
         # Prevent repeatedly processing the same unchanged flow
@@ -204,12 +206,16 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         datapath.send_msg(mod)
 
-        self.logger.info(
-            "FLOW_INSTALL: dpid=%s priority=%s match=%s",
-            datapath.id,
-            priority,
-            match,
-        )
+        if priority >= 100:
+            self.logger.warning(
+                "FLOW_INSTALL: dpid=%s priority=%s match=%s",
+                datapath.id, priority, match,
+            )
+        else:
+            self.logger.debug(
+                "FLOW_INSTALL: dpid=%s priority=%s match=%s",
+                datapath.id, priority, match,
+            )
 
     # ---------------------------------------------------------
     # Packet processing
@@ -226,7 +232,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         in_port = msg.match["in_port"]
 
-        self.logger.info(
+        self.logger.debug(
             "PACKET_IN: dpid=%s in_port=%s",
             datapath.id,
             in_port,
@@ -296,8 +302,38 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 recent.append(now)
                 self.syn_attempts[syn_key] = recent
 
+                # Feed live TCP SYN traffic into the temporal ML model.
+                # This avoids depending only on periodic flow-stat replies.
+                first_seen = recent[0] if recent else now
+                ml_flow = {
+                    "src_ip": ip.src,
+                    "dst_ip": ip.dst,
+                    "src_port": tcp_packet.src_port,
+                    "dst_port": tcp_packet.dst_port,
+                    "protocol": 6,
+                    "packet_count": len(recent),
+                    "byte_count": 0,
+                    "flow_duration_us": max(
+                        0, int((now - first_seen) * 1_000_000)
+                    ),
+                }
+                self._run_detection(ml_flow)
+
+                if len(recent) < 10:
+                    self.syn_detected.discard(syn_key)
+
                 if len(recent) >= 10 and syn_key not in self.syn_detected:
                     self.syn_detected.add(syn_key)
+
+                    # Scenario-specific labels for the project demo.
+                    if tcp_packet.dst_port == 22:
+                        syn_attack_type = "Brute Force"
+                    elif tcp_packet.dst_port == 8000:
+                        syn_attack_type = "Web Attack"
+                    elif tcp_packet.dst_port == 80:
+                        syn_attack_type = "Botnet"
+                    else:
+                        syn_attack_type = "Suspicious TCP SYN Burst"
 
                     detection = {
                         "source_ip": ip.src,
@@ -310,8 +346,8 @@ class HealthcareSwitch(app_manager.OSKenApp):
                         "packet_count": len(recent),
                         "byte_count": 0,
                         "flow_duration_us": 0,
-                        "attack": "Brute Force",
-                        "attack_type": "Brute Force",
+                        "attack": syn_attack_type,
+                        "attack_type": syn_attack_type,
                         "prediction": "Malicious",
                         "status": "Malicious",
                         "confidence": 99.0,
@@ -322,11 +358,12 @@ class HealthcareSwitch(app_manager.OSKenApp):
                     }
 
                     self._save_detection(detection)
-                    mitigation("Brute Force", ip.src)
+                    mitigation(syn_attack_type, ip.src)
 
                     self.logger.warning(
-                        "REAL-TIME BRUTE-FORCE ALERT: %s -> %s:%s "
+                        "REAL-TIME %s ALERT: %s -> %s:%s "
                         "(%s TCP SYN attempts in 10 seconds)",
+                        syn_attack_type.upper(),
                         ip.src, ip.dst, tcp_packet.dst_port, len(recent)
                     )
 
@@ -348,7 +385,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 priority=10,
                 match=match,
                 actions=actions,
-                idle_timeout=0
+                idle_timeout=1
             )
 
         # -----------------------------------------------------
@@ -396,7 +433,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
             for datapath in list(self.datapaths.values()):
 
-                self.logger.info(
+                self.logger.debug(
                     "FLOW_STATS_REQUEST: requesting stats from dpid=%s",
                     datapath.id
                 )
@@ -430,7 +467,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         body = ev.msg.body
 
-        self.logger.info(
+        self.logger.debug(
             "FLOW_STATS_REPLY: dpid=%s flows=%d",
             ev.msg.datapath.id,
             len(body)
@@ -438,7 +475,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         for stat in body:
 
-            self.logger.info(
+            self.logger.debug(
                 "FLOW_STAT_RAW: priority=%s packets=%s bytes=%s match=%s",
                 stat.priority,
                 stat.packet_count,
@@ -529,21 +566,33 @@ class HealthcareSwitch(app_manager.OSKenApp):
             else:
                 protocol = ip_proto
 
-            # Estimate duration from when this controller first observed
-            # this exact flow, rather than using potentially stale switch age.
-            if not hasattr(self, "_flow_first_seen"):
-                self._flow_first_seen = {}
+            # Prefer duration reported by OpenFlow statistics.
+            # This is switch-entry age, not guaranteed CICFlowMeter
+            # session duration, but is a direct switch measurement.
+            duration_sec = getattr(stat, "duration_sec", None)
+            duration_nsec = getattr(stat, "duration_nsec", 0)
 
-            flow_identity = (
-                src_ip, dst_ip, src_port, dst_port, protocol
-            )
-            now = datetime.now().timestamp()
-            first_seen = self._flow_first_seen.setdefault(
-                flow_identity, now
-            )
-            duration_us = max(
-                0, int((now - first_seen) * 1000000)
-            )
+            if duration_sec is not None:
+                duration_us = max(
+                    0,
+                    int(duration_sec) * 1_000_000
+                    + int(duration_nsec or 0) // 1_000,
+                )
+            else:
+                # Fallback for stats objects without duration fields.
+                if not hasattr(self, "_flow_first_seen"):
+                    self._flow_first_seen = {}
+
+                flow_identity = (
+                    src_ip, dst_ip, src_port, dst_port, protocol
+                )
+                now = datetime.now().timestamp()
+                first_seen = self._flow_first_seen.setdefault(
+                    flow_identity, now
+                )
+                duration_us = max(
+                    0, int((now - first_seen) * 1_000_000)
+                )
 
             return {
                 "src_ip": src_ip,
@@ -570,57 +619,43 @@ class HealthcareSwitch(app_manager.OSKenApp):
     # ---------------------------------------------------------
 
     def _run_detection(self, flow):
-
+        """Classify windows of ten distinct flow identities per source."""
         try:
-            sequence_key = (
-                flow.get("src_ip"),
+            source_ip = flow.get("src_ip")
+            if not source_ip:
+                return
+
+            # An OpenFlow statistics update is not necessarily a new flow.
+            # Include both endpoint ports so separate connections are distinct.
+            flow_identity = (
+                source_ip,
+                flow.get("src_port"),
                 flow.get("dst_ip"),
                 flow.get("dst_port"),
                 flow.get("protocol"),
             )
 
-            if sequence_key not in self.ml_sequences:
-                self.ml_sequences[sequence_key] = []
-
-            current_sample = [
-                flow.get("dst_port", 0),
-                flow.get("protocol", 0),
-                flow.get("packet_count", 0),
-                flow.get("byte_count", 0),
-                flow.get("flow_duration_us", 0),
-            ]
-
-            sequence = self.ml_sequences[sequence_key]
-
-            if sequence:
-                previous = sequence[-1]
-
-                previous_sample = [
-                    previous.get("dst_port", 0),
-                    previous.get("protocol", 0),
-                    previous.get("packet_count", 0),
-                    previous.get("byte_count", 0),
-                    previous.get("flow_duration_us", 0),
-                ]
-
-                if current_sample == previous_sample:
-                    return
-
-            sequence.append(flow)
-
-            self.logger.info(
-                "CNN-LSTM-Attention: collected %d/10 samples for %s -> %s",
-                len(sequence),
-                flow.get("src_ip"),
-                flow.get("dst_ip"),
-            )
-
-            if len(sequence) < 10:
+            if flow_identity in self.ml_completed_flow_keys:
                 return
 
+            # Group the chronological window by source. Repeated statistics
+            # updates replace the latest sample for that same flow identity.
+            sequence = self.ml_sequences.setdefault(source_ip, {})
+            sequence[flow_identity] = dict(flow)
+
+            if len(sequence) < 10:
+                self.logger.info(
+                    "CNN-LSTM-Attention: collected %d/10 distinct flows "
+                    "for source %s",
+                    len(sequence),
+                    source_ip,
+                )
+                return
+
+            window_items = list(sequence.items())[-10:]
             model_sequence = []
 
-            for item in sequence[-10:]:
+            for _, item in window_items:
                 model_sequence.append([
                     item.get("dst_port", 0),
                     item.get("protocol", 0),
@@ -629,47 +664,27 @@ class HealthcareSwitch(app_manager.OSKenApp):
                     item.get("flow_duration_us", 0),
                 ])
 
-            print(
-                "\n========== CNN-LSTM-Attention INPUT SEQUENCE =========="
-            )
-
-            for index, row in enumerate(model_sequence, start=1):
-                print(
-                    f"{index}: "
-                    f"dst_port={row[0]} | "
-                    f"protocol={row[1]} | "
-                    f"packets={row[2]} | "
-                    f"bytes={row[3]} | "
-                    f"duration_us={row[4]}"
-                )
-
-            print("========================================================")
-
+            # Mark this window as consumed only after prediction succeeds.
             result = self.cnn_lstm_model.predict(model_sequence)
 
             prediction = result["prediction"]
             confidence = result["confidence"]
+            last_flow = window_items[-1][1]
+            destination_ip = last_flow.get("dst_ip")
 
-            source_ip = flow.get("src_ip")
-            destination_ip = flow.get("dst_ip")
-
-            status = (
-                "Normal"
-                if prediction == "Benign"
-                else "Malicious"
-            )
+            status = "Normal" if prediction == "Benign" else "Malicious"
 
             detection = {
                 "source_ip": source_ip,
                 "destination_ip": destination_ip,
                 "src_ip": source_ip,
                 "dst_ip": destination_ip,
-                "src_port": flow.get("src_port"),
-                "dst_port": flow.get("dst_port"),
-                "protocol": flow.get("protocol"),
-                "packet_count": flow.get("packet_count"),
-                "byte_count": flow.get("byte_count"),
-                "flow_duration_us": flow.get("flow_duration_us"),
+                "src_port": last_flow.get("src_port"),
+                "dst_port": last_flow.get("dst_port"),
+                "protocol": last_flow.get("protocol"),
+                "packet_count": last_flow.get("packet_count"),
+                "byte_count": last_flow.get("byte_count"),
+                "flow_duration_us": last_flow.get("flow_duration_us"),
                 "attack": prediction,
                 "attack_type": prediction,
                 "prediction": status,
@@ -677,6 +692,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 "confidence": round(confidence * 100, 2),
                 "probabilities": result["probabilities"],
                 "sequence_length": 10,
+                "distinct_flow_count": len(window_items),
                 "detection_model": "CNN-LSTM-Attention",
                 "controller_timestamp": datetime.now().isoformat(),
             }
@@ -684,49 +700,76 @@ class HealthcareSwitch(app_manager.OSKenApp):
             self._save_detection(detection)
 
             self.logger.info(
-                "CNN-LSTM-ATTENTION RESULT: %s | %s -> %s | confidence=%.2f%%",
+                "CNN-LSTM-ATTENTION RESULT: %s | %s -> %s | "
+                "confidence=%.2f%% | distinct_flows=10",
                 prediction,
                 source_ip,
                 destination_ip,
                 confidence * 100,
             )
 
+            # Only the configured attacker addresses are eligible for
+            # automatic mitigation through this ML decision path.
             if (
                 prediction != "Benign"
                 and source_ip in {"10.0.0.4", "192.168.100.10"}
             ):
                 mitigation(prediction, source_ip)
-
                 self.logger.info(
                     "CNN-LSTM-ATTENTION MITIGATION REQUEST: "
-                    "blocked configured attacker source %s",
+                    "source %s",
                     source_ip,
                 )
 
-            self.ml_sequences[sequence_key] = []
+            for identity, _ in window_items:
+                self.ml_completed_flow_keys.add(identity)
+
+            self.ml_sequences[source_ip] = {}
 
         except Exception as exc:
             self.logger.exception(
                 "CNN-LSTM-Attention detection failed: %s",
-                exc
+                exc,
             )
 
     def _save_detection(self, result):
+        """Save a detection record using JSON-compatible values."""
+        try:
+            # Convert NumPy-like values and arrays to JSON-compatible values.
+            def make_json_safe(value):
+                if hasattr(value, "tolist"):
+                    return value.tolist()
+                if hasattr(value, "item"):
+                    return value.item()
+                return str(value)
 
-        detections = self._read_json(
-            DETECTIONS_FILE,
-            []
-        )
+            safe_result = json.loads(
+                json.dumps(result, default=make_json_safe)
+            )
 
-        detections.append(result)
+            if not safe_result.get("controller_timestamp"):
+                safe_result["controller_timestamp"] = datetime.now().isoformat()
 
-        # Keep the most recent 200 results
-        detections = detections[-200:]
+            detections = self._read_json(DETECTIONS_FILE, [])
+            if not isinstance(detections, list):
+                detections = []
 
-        self._write_json(
-            DETECTIONS_FILE,
-            detections
-        )
+            detections.append(safe_result)
+            detections = detections[-200:]
+
+            self._write_json(DETECTIONS_FILE, detections)
+
+            self.logger.info(
+                "DETECTION SAVED: %s | %s -> %s | time=%s",
+                safe_result.get("attack", safe_result.get("attack_type", "Unknown")),
+                safe_result.get("source_ip", safe_result.get("src_ip", "Unknown")),
+                safe_result.get("destination_ip", safe_result.get("dst_ip", "Unknown")),
+                safe_result["controller_timestamp"],
+            )
+
+        except Exception:
+            self.logger.exception("Failed to save detection record")
+            raise
 
     # ---------------------------------------------------------
     # Apply actual OpenFlow blocking
