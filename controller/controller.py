@@ -358,7 +358,14 @@ class HealthcareSwitch(app_manager.OSKenApp):
                     }
 
                     self._save_detection(detection)
-                    mitigation(syn_attack_type, ip.src)
+
+                    # Automatically block only the configured external attacker.
+                    if ip.src == "192.168.100.10":
+                        mitigation(syn_attack_type, ip.src)
+                        self.logger.warning(
+                            "SYN BURST MITIGATION REQUEST: source %s",
+                            ip.src,
+                        )
 
                     self.logger.warning(
                         "REAL-TIME %s ALERT: %s -> %s:%s "
@@ -712,7 +719,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
             # automatic mitigation through this ML decision path.
             if (
                 prediction != "Benign"
-                and source_ip in {"10.0.0.4", "192.168.100.10"}
+                and source_ip == "192.168.100.10"
             ):
                 mitigation(prediction, source_ip)
                 self.logger.info(
@@ -785,64 +792,72 @@ class HealthcareSwitch(app_manager.OSKenApp):
         if not requests:
             return
 
-        parser = datapath.ofproto_parser
+        # Apply each block to every currently connected switch.
+        connected_datapaths = list(self.datapaths.values())
 
-        applied_requests = []
+        if not connected_datapaths:
+            return
+
+        blocked_ips = self._read_json(
+            BLOCKED_IP_FILE,
+            []
+        )
+
+        if not isinstance(blocked_ips, list):
+            blocked_ips = []
+
+        remaining = []
 
         for request in requests:
-
             source_ip = request.get("source_ip")
 
-            if not source_ip:
+            if not isinstance(source_ip, str) or not source_ip:
+                remaining.append(request)
                 continue
 
-            # Drop all IPv4 traffic from malicious source
-            match = parser.OFPMatch(
-                eth_type=ether_types.ETH_TYPE_IP,
-                ipv4_src=source_ip
-            )
+            try:
+                for switch_datapath in connected_datapaths:
+                    parser = switch_datapath.ofproto_parser
 
-            self.add_flow(
-                datapath,
-                priority=100,
-                match=match,
-                actions=[],
-                idle_timeout=0,
-                hard_timeout=0
-            )
+                    match = parser.OFPMatch(
+                        eth_type=ether_types.ETH_TYPE_IP,
+                        ipv4_src=source_ip
+                    )
 
-            applied_requests.append(source_ip)
+                    self.add_flow(
+                        switch_datapath,
+                        priority=100,
+                        match=match,
+                        actions=[],
+                        idle_timeout=0,
+                        hard_timeout=0
+                    )
 
-            self.logger.warning(
-                "OPENFLOW BLOCK INSTALLED: %s",
-                source_ip
-            )
+                    self.logger.warning(
+                        "OPENFLOW BLOCK INSTALLED: source=%s dpid=%s",
+                        source_ip,
+                        switch_datapath.id
+                    )
 
-            blocked_ips = self._read_json(
-                BLOCKED_IP_FILE,
-                []
-            )
+                if source_ip not in blocked_ips:
+                    blocked_ips.append(source_ip)
 
-            if source_ip not in blocked_ips:
-                blocked_ips.append(source_ip)
                 self._write_json(
                     BLOCKED_IP_FILE,
                     blocked_ips
                 )
 
-        # Clear processed requests
-        if applied_requests:
+            except Exception:
+                self.logger.exception(
+                    "Failed to install block for %s; keeping request pending",
+                    source_ip
+                )
+                remaining.append(request)
 
-            remaining = [
-                request
-                for request in requests
-                if request.get("source_ip") not in applied_requests
-            ]
-
-            self._write_json(
-                BLOCK_REQUEST_FILE,
-                remaining
-            )
+        self._write_json(
+            BLOCK_REQUEST_FILE,
+            remaining
+        )
 
 
 if __name__ == "__main__":
