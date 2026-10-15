@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+from mininet.topo import Topo
+
+
+class HealthcareTopo(Topo):
+    """SDN topology containing simulated healthcare devices and an attacker."""
+
+    def build(self):
+        # Simulated healthcare devices
+        patient_monitor = self.addHost(
+            'patient_monitor',
+            ip='10.0.0.1/24'
+        )
+
+        infusion_pump = self.addHost(
+            'infusion_pump',
+            ip='10.0.0.2/24'
+        )
+
+        mri_scanner = self.addHost(
+            'mri_scanner',
+            ip='10.0.0.3/24'
+        )
+
+        # Simulated attacker workstation
+        attacker = self.addHost(
+            'attacker_workstation',
+            ip='10.0.0.4/24'
+        )
+
+        # Connect all hosts to one OpenFlow switch
+        switch = self.addSwitch('s1')
+
+        self.addLink(patient_monitor, switch)
+        self.addLink(infusion_pump, switch)
+        self.addLink(mri_scanner, switch)
+        self.addLink(attacker, switch)
+
+
+topos = {
+    'healthcare': lambda: HealthcareTopo()
+}

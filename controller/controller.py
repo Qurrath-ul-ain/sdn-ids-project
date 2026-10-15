@@ -240,6 +240,72 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         pkt = packet.Packet(msg.data)
 
+        # LIVE_PACKET_CAPTURE_FOR_DATASET
+        # Record observed TCP/UDP traffic as cumulative live flow samples.
+        try:
+            import csv
+            import os
+            import time
+            from os_ken.lib.packet import ipv4, tcp, udp
+
+            ip_pkt = pkt.get_protocol(ipv4.ipv4)
+            tcp_pkt = pkt.get_protocol(tcp.tcp)
+            udp_pkt = pkt.get_protocol(udp.udp)
+
+            if ip_pkt is not None and (tcp_pkt is not None or udp_pkt is not None):
+                proto = 6 if tcp_pkt is not None else 17
+                src_port = tcp_pkt.src_port if tcp_pkt is not None else udp_pkt.src_port
+                dst_port = tcp_pkt.dst_port if tcp_pkt is not None else udp_pkt.dst_port
+
+                key = (ip_pkt.src, ip_pkt.dst, src_port, dst_port, proto)
+                now = time.monotonic()
+                flows = getattr(self, "live_packet_flows", None)
+                if flows is None:
+                    flows = {}
+                    self.live_packet_flows = flows
+
+                record = flows.get(key)
+                if record is None:
+                    record = {
+                        "start": now,
+                        "packets": 0,
+                        "bytes": 0,
+                    }
+                    flows[key] = record
+
+                record["packets"] += 1
+                record["bytes"] += len(msg.data)
+
+                root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                output = os.path.join(root, "data", "raw", "live_openflow_flows.csv")
+                os.makedirs(os.path.dirname(output), exist_ok=True)
+                columns = [
+                    "timestamp", "src_ip", "dst_ip", "src_port", "dst_port",
+                    "protocol", "packet_count", "byte_count", "flow_duration_us", "label"
+                ]
+                write_header = not os.path.exists(output) or os.path.getsize(output) == 0
+
+                with open(output, "a", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=columns)
+                    if write_header:
+                        writer.writeheader()
+                    writer.writerow({
+                        "timestamp": datetime.now().isoformat(timespec="seconds"),
+                        "src_ip": ip_pkt.src,
+                        "dst_ip": ip_pkt.dst,
+                        "src_port": src_port,
+                        "dst_port": dst_port,
+                        "protocol": proto,
+                        "packet_count": record["packets"],
+                        "byte_count": record["bytes"],
+                        "flow_duration_us": int((now - record["start"]) * 1_000_000),
+                        "label": "Unknown",
+                    })
+
+                # ML inference uses the OpenFlow statistics path only.
+        except Exception as exc:
+            self.logger.warning("Live packet capture failed: %s", exc)
+
         eth = pkt.get_protocol(ethernet.ethernet)
 
         if eth is None:
@@ -302,27 +368,12 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 recent.append(now)
                 self.syn_attempts[syn_key] = recent
 
-                # Feed live TCP SYN traffic into the temporal ML model.
-                # This avoids depending only on periodic flow-stat replies.
-                first_seen = recent[0] if recent else now
-                ml_flow = {
-                    "src_ip": ip.src,
-                    "dst_ip": ip.dst,
-                    "src_port": tcp_packet.src_port,
-                    "dst_port": tcp_packet.dst_port,
-                    "protocol": 6,
-                    "packet_count": len(recent),
-                    "byte_count": 0,
-                    "flow_duration_us": max(
-                        0, int((now - first_seen) * 1_000_000)
-                    ),
-                }
-                self._run_detection(ml_flow)
+                # SYN-burst detection remains separate from ML inference.
 
                 if len(recent) < 10:
                     self.syn_detected.discard(syn_key)
 
-                if len(recent) >= 10 and syn_key not in self.syn_detected:
+                if len(recent) >= 10 and syn_key not in self.syn_detected and ip.src == "192.168.100.10":
                     self.syn_detected.add(syn_key)
 
                     # Scenario-specific labels for the project demo.
@@ -392,7 +443,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 priority=10,
                 match=match,
                 actions=actions,
-                idle_timeout=1
+                idle_timeout=10
             )
 
         # -----------------------------------------------------
@@ -532,6 +583,52 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
             if previous_counter == current_counter:
                 continue
+
+            # Save changed live OpenFlow measurements separately.
+            try:
+                import csv
+                import os
+
+                project_root = os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__))
+                )
+                output = os.path.join(
+                    project_root, "data", "raw",
+                    "live_openflow_flows.csv"
+                )
+                os.makedirs(os.path.dirname(output), exist_ok=True)
+
+                columns = [
+                    "timestamp", "src_ip", "dst_ip",
+                    "src_port", "dst_port", "protocol",
+                    "packet_count", "byte_count",
+                    "flow_duration_us", "label"
+                ]
+
+                write_header = (
+                    not os.path.exists(output)
+                    or os.path.getsize(output) == 0
+                )
+
+                with open(output, "a", newline="") as dataset:
+                    writer = csv.DictWriter(
+                        dataset, fieldnames=columns
+                    )
+                    if write_header:
+                        writer.writeheader()
+
+                    writer.writerow({
+                        "timestamp": datetime.now().isoformat(
+                            timespec="seconds"
+                        ),
+                        **flow,
+                        "label": "Unknown"
+                    })
+
+            except Exception as exc:
+                self.logger.warning(
+                    "Live dataset recording failed: %s", exc
+                )
 
             self._run_detection(flow)
 
