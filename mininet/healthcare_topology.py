@@ -36,3 +36,15 @@ class HealthcareTopo(Topo):
 topos = {
     'healthcare': lambda: HealthcareTopo()
 }
+if __name__ == '__main__':
+    from mininet.net import Mininet
+    from mininet.node import RemoteController
+    from mininet.cli import CLI
+    from mininet.log import setLogLevel
+
+    setLogLevel('info')
+    net = Mininet(topo=HealthcareTopo(), controller=None)
+    net.addController('c0', controller=RemoteController, ip='127.0.0.1', port=6653)
+    net.start()
+    CLI(net)
+    net.stop()
