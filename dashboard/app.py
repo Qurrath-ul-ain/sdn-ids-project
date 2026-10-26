@@ -20,36 +20,36 @@ def read_json(filename, default):
 
 
 def classify_record(item):
-    """Apply the configured lab trust policy before displaying IDS alerts."""
+    """Classify detections without allowing trusted IPs to hide attacks."""
     source_ip = str(
         item.get("source_ip") or item.get("src_ip") or ""
     ).strip()
 
-    # Lab-only trusted medical-device addresses.
-    trusted_devices = {
-        "10.0.0.1",  # ECG monitor
-        "10.0.0.2",  # Patient device
-        "10.0.0.3",  # Healthcare server
-    }
-    attacker_ip = "10.0.0.4"
-
-    if source_ip == attacker_ip:
-        return "malicious"
-
-    if source_ip in trusted_devices:
-        return "benign"
-
     status = str(item.get("status", "")).strip().lower()
     prediction = str(item.get("prediction", "")).strip().lower()
     attack = str(
-        item.get("attack") or item.get("attack_type") or ""
+        item.get("attack_type") or item.get("attack") or ""
     ).strip().lower()
 
+    # The configured lab attacker is always flagged.
+    if source_ip in {"10.0.0.4", "192.168.100.10"}:
+        return "malicious"
+
+    # Explicit attack labels take priority over trusted-device IPs.
     if attack not in ("", "unknown", "none", "normal", "benign"):
         return "malicious"
 
     if status == "malicious" or prediction == "malicious":
         return "malicious"
+
+    trusted_devices = {
+        "10.0.0.1",
+        "10.0.0.2",
+        "10.0.0.3",
+    }
+
+    if source_ip in trusted_devices:
+        return "benign"
 
     if status in ("normal", "benign") or prediction in ("normal", "benign"):
         return "benign"
