@@ -373,7 +373,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 if len(recent) < 10:
                     self.syn_detected.discard(syn_key)
 
-                if len(recent) >= 10 and syn_key not in self.syn_detected and ip.src == "192.168.100.10":
+                if len(recent) >= 10 and syn_key not in self.syn_detected and ip.src in {"192.168.100.10", "10.0.0.4"}:
                     self.syn_detected.add(syn_key)
 
                     # Scenario-specific labels for the project demo.
@@ -411,7 +411,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                     self._save_detection(detection)
 
                     # Automatically block only the configured external attacker.
-                    if ip.src == "192.168.100.10":
+                    if ip.src in {"192.168.100.10", "10.0.0.4"}:
                         mitigation(syn_attack_type, ip.src)
                         self.logger.warning(
                             "SYN BURST MITIGATION REQUEST: source %s",
@@ -816,7 +816,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
             # automatic mitigation through this ML decision path.
             if (
                 prediction != "Benign"
-                and source_ip == "192.168.100.10"
+                and source_ip in {"192.168.100.10", "10.0.0.4"}
             ):
                 mitigation(prediction, source_ip)
                 self.logger.info(
