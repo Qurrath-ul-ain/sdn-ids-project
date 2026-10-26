@@ -263,7 +263,7 @@
 
                                 <td>
 
-                                    {% if is_lab_attacker or (not is_trusted_device and detection.status == "Malicious") %}
+                                    {% if is_lab_attacker or (not is_trusted_device and (detection.status == "Malicious" or detection.prediction == "Malicious" or attack_label not in ["", "Unknown", "Normal", "Benign", "None"])) %}
                                         <span class="status malicious">
                                             ● Alert — Validate
                                         </span>
