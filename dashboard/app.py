@@ -45,14 +45,16 @@ def classify_record(item):
         item.get("attack") or item.get("attack_type") or ""
     ).strip().lower()
 
-    if status in ("normal", "benign") or prediction in ("normal", "benign"):
-        return "benign"
+    if attack not in ("", "unknown", "none", "normal", "benign"):
+        return "malicious"
+
     if status == "malicious" or prediction == "malicious":
         return "malicious"
-    if attack in ("", "unknown", "none", "normal", "benign"):
-        return "unknown"
-    return "malicious"
 
+    if status in ("normal", "benign") or prediction in ("normal", "benign"):
+        return "benign"
+
+    return "unknown"
 
 def get_dashboard_data():
     detections = read_json(DETECTIONS_FILE, [])
