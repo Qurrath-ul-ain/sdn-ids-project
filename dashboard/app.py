@@ -30,9 +30,8 @@ def classify_record(item):
         "10.0.0.1",  # ECG monitor
         "10.0.0.2",  # Patient device
         "10.0.0.3",  # Healthcare server
-        "10.0.0.4",  # Infusion device
     }
-    attacker_ip = "192.168.100.10"
+    attacker_ip = "10.0.0.4"
 
     if source_ip == attacker_ip:
         return "malicious"
