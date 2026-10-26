@@ -215,8 +215,8 @@
 
                         {% for detection in detections %}
                             {% set source_ip = detection.source_ip or detection.src_ip or "" %}
-                            {% set trusted_devices = ["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"] %}
-                            {% set is_lab_attacker = source_ip == "192.168.100.10" %}
+                            {% set trusted_devices = ["10.0.0.1", "10.0.0.2", "10.0.0.3"] %}
+                            {% set is_lab_attacker = source_ip in ["192.168.100.10", "10.0.0.4"] %}
                             {% set is_trusted_device = source_ip in trusted_devices %}
 
                             <tr>
