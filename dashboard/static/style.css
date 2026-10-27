@@ -805,3 +805,139 @@ footer {
         width: 55px;
     }
 }
+/* ===== Project Team and Guide Bar ===== */
+
+.project-team-bar {
+    display: grid;
+    grid-template-columns: 190px minmax(280px, 1fr) 190px;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 18px 22px;
+    margin: 18px 0 26px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #2563eb;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.college-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.college-logo {
+    width: 55px;
+    height: 55px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.college-brand-text {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.college-name {
+    color: #172554;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.5;
+}
+
+.college-department {
+    color: #64748b;
+    font-size: 11px;
+}
+
+.bar-label {
+    display: block;
+    margin-bottom: 10px;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.member-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.member-chip {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px 11px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    color: #1e293b;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.member-chip small {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.guide-info {
+    padding-left: 18px;
+    border-left: 1px solid #e2e8f0;
+}
+
+.guide-info strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #1e3a8a;
+    font-size: 14px;
+}
+
+.guide-info small {
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+/* Responsive layout */
+@media (max-width: 1100px) {
+    .project-team-bar {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .team-members {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+}
+
+@media (max-width: 600px) {
+    .project-team-bar {
+        grid-template-columns: 1fr;
+        gap: 18px;
+        padding: 16px;
+    }
+
+    .team-members {
+        grid-column: auto;
+        grid-row: auto;
+    }
+
+    .guide-info {
+        padding: 14px 0 0;
+        border-left: none;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .member-chip {
+        flex: 1 1 130px;
+    }
+}
