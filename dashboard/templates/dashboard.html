@@ -64,12 +64,11 @@
 <section id="project-team-bar" class="project-team-bar">
 
     <div class="college-brand">
-        <img
-            src="https://sjcit.ac.in/wp-content/uploads/2022/11/logo.png"
-            alt="SJCIT College Logo"
-            class="college-logo"
-            onerror="this.style.display='none';"
-        >
+    <img
+        src="{{ url_for('static', filename='sjcit-logo.png') }}"
+        alt="SJCIT College Logo"
+        class="college-logo"
+    >        
         <div class="college-brand-text">
             <span class="college-name">SJC INSTITUTE OF TECHNOLOGY</span>
             <span class="college-department">Department of CSE</span>
