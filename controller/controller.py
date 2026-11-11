@@ -927,7 +927,13 @@ class HealthcareSwitch(app_manager.OSKenApp):
             )
 
             # Apply targeted flow restriction to detected Botnet traffic.
-            if prediction == "Botnet":
+            if (
+                prediction == "Botnet"
+                or (
+                    prediction == "Web Attack"
+                    and source_ip != "192.168.100.10"
+                )
+            ):
                 mitigation(
                     prediction,
                     source_ip,

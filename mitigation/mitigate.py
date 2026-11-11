@@ -120,16 +120,20 @@ def mitigation(prediction: str, ip: str, destination_ip=None,
     print(f"Attack detected from {ip}")
 
     if (
-        prediction_normalized == "botnet"
+        prediction_normalized in {"botnet", "web attack"}
         and destination_ip is not None
         and destination_port is not None
     ):
+        attack_type = (
+            "Botnet" if prediction_normalized == "botnet"
+            else "Web Attack"
+        )
         return block_flow(
             ip,
             destination_ip,
             destination_port,
             protocol,
-            "Botnet"
+            attack_type
         )
 
     return block_ip(ip)
