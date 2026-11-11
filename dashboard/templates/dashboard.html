@@ -134,8 +134,16 @@
                 <div class="card">
                     <div class="card-icon orange">🔒</div>
                     <div>
-                        <span>Blocked IPs</span>
+                        <span>IP Blocks</span>
                         <strong>{{ summary.blocked_ips }}</strong>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon orange">🛡️</div>
+                    <div>
+                        <span>Flow Restrictions</span>
+                        <strong>{{ summary.flow_restrictions }}</strong>
                     </div>
                 </div>
 
@@ -332,7 +340,7 @@
             <div class="section-heading">
                 <div>
                     <h2>Mitigation Status</h2>
-                    <p>Source addresses currently blocked by mitigation</p>
+                    <p>Full IP blocks and targeted malicious-flow restrictions</p>
                 </div>
             </div>
 
@@ -355,10 +363,21 @@
 
                             <span>{{ item.attack }}</span>
 
+                            {% if item.destination_ip %}
+                                <small>
+                                    → {{ item.destination_ip }} :
+                                    {{ item.protocol }}/{{ item.destination_port }}
+                                </small>
+                            {% endif %}
+
                         </div>
 
                         <div class="blocked-status">
-                            BLOCKED
+                            {% if item.status == "Flow Restricted" %}
+                                FLOW RESTRICTED
+                            {% else %}
+                                BLOCKED
+                            {% endif %}
                         </div>
 
                     </div>
@@ -397,7 +416,7 @@
 
                 <div class="system-card">
                     <span>Mitigation</span>
-                    <strong>IP Blocking</strong>
+                    <strong>IP Blocking + Flow Restriction</strong>
                 </div>
 
                 <div class="system-card">

@@ -34,6 +34,8 @@ DETECTIONS_FILE = os.path.join(RUNTIME_DIR, "detections.json")
 BLOCK_REQUEST_FILE = os.path.join(RUNTIME_DIR, "block_requests.json")
 BLOCKED_IP_FILE = os.path.join(RUNTIME_DIR, "blocked_ips.json")
 
+BLOCKED_FLOWS_FILE = os.path.join(RUNTIME_DIR, "blocked_flows.json")
+
 
 class HealthcareSwitch(app_manager.OSKenApp):
 
@@ -69,6 +71,9 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
         if not os.path.exists(BLOCKED_IP_FILE):
             self._write_json(BLOCKED_IP_FILE, [])
+
+        if not os.path.exists(BLOCKED_FLOWS_FILE):
+            self._write_json(BLOCKED_FLOWS_FILE, [])
 
         self.monitor_thread = hub.spawn(self._monitor)
 
@@ -156,6 +161,47 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 "RESTORED OPENFLOW BLOCK: %s",
                 source_ip
             )
+
+        # Restore healthcare-aware targeted flow restrictions.
+        blocked_flows = self._read_json(BLOCKED_FLOWS_FILE, [])
+        for item in blocked_flows:
+            try:
+                source = item["source_ip"]
+                destination = item["destination_ip"]
+                protocol = int(item["protocol"])
+                port = int(item["destination_port"])
+
+                fields = {
+                    "eth_type": ether_types.ETH_TYPE_IP,
+                    "ipv4_src": source,
+                    "ipv4_dst": destination,
+                    "ip_proto": protocol,
+                }
+
+                if protocol == 6:
+                    fields["tcp_dst"] = port
+                elif protocol == 17:
+                    fields["udp_dst"] = port
+                else:
+                    continue
+
+                flow_match = parser.OFPMatch(**fields)
+                self.add_flow(
+                    datapath,
+                    priority=110,
+                    match=flow_match,
+                    actions=[],
+                    idle_timeout=0,
+                    hard_timeout=0
+                )
+
+                self.logger.warning(
+                    "RESTORED TARGETED FLOW RESTRICTION: "
+                    "%s -> %s protocol=%s port=%s",
+                    source, destination, protocol, port
+                )
+            except (KeyError, TypeError, ValueError):
+                self.logger.exception("Invalid saved targeted flow: %s", item)
 
     @set_ev_cls(
         ofp_event.EventOFPStateChange,
@@ -302,7 +348,17 @@ class HealthcareSwitch(app_manager.OSKenApp):
                         "label": "Unknown",
                     })
 
-                # ML inference uses the OpenFlow statistics path only.
+                # Feed the same live flow measurements into the existing IDS.
+                self._run_detection({
+                    "src_ip": ip_pkt.src,
+                    "dst_ip": ip_pkt.dst,
+                    "src_port": src_port,
+                    "dst_port": dst_port,
+                    "protocol": proto,
+                    "packet_count": record["packets"],
+                    "byte_count": record["bytes"],
+                    "flow_duration_us": int((now - record["start"]) * 1_000_000),
+                })
         except Exception as exc:
             self.logger.warning("Live packet capture failed: %s", exc)
 
@@ -368,12 +424,27 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 recent.append(now)
                 self.syn_attempts[syn_key] = recent
 
-                # SYN-burst detection remains separate from ML inference.
+                # Feed live TCP SYN traffic into the temporal ML model.
+                # This avoids depending only on periodic flow-stat replies.
+                first_seen = recent[0] if recent else now
+                ml_flow = {
+                    "src_ip": ip.src,
+                    "dst_ip": ip.dst,
+                    "src_port": tcp_packet.src_port,
+                    "dst_port": tcp_packet.dst_port,
+                    "protocol": 6,
+                    "packet_count": len(recent),
+                    "byte_count": 0,
+                    "flow_duration_us": max(
+                        0, int((now - first_seen) * 1_000_000)
+                    ),
+                }
+                self._run_detection(ml_flow)
 
                 if len(recent) < 10:
                     self.syn_detected.discard(syn_key)
 
-                if len(recent) >= 10 and syn_key not in self.syn_detected and ip.src in {"192.168.100.10", "10.0.0.4"}:
+                if len(recent) >= 10 and syn_key not in self.syn_detected:
                     self.syn_detected.add(syn_key)
 
                     # Scenario-specific labels for the project demo.
@@ -410,11 +481,32 @@ class HealthcareSwitch(app_manager.OSKenApp):
 
                     self._save_detection(detection)
 
-                    # Automatically block only the configured external attacker.
-                    if ip.src in {"192.168.100.10", "10.0.0.4"}:
+                    # Healthcare-aware mitigation:
+                    # Botnet traffic is restricted by its exact flow.
+                    if syn_attack_type == "Botnet":
+                        mitigation(
+                            syn_attack_type,
+                            ip.src,
+                            destination_ip=ip.dst,
+                            destination_port=tcp_packet.dst_port,
+                            protocol=6
+                        )
+                        self.logger.warning(
+                            "BOTNET TARGETED MITIGATION REQUEST: "
+                            "%s -> %s TCP/%s",
+                            ip.src, ip.dst, tcp_packet.dst_port
+                        )
+
+                    # External brute-force and web attackers receive
+                    # a source-IP block. Internal medical devices are
+                    # not disconnected wholesale.
+                    elif (
+                        ip.src == "192.168.100.10"
+                        and syn_attack_type in ("Brute Force", "Web Attack")
+                    ):
                         mitigation(syn_attack_type, ip.src)
                         self.logger.warning(
-                            "SYN BURST MITIGATION REQUEST: source %s",
+                            "SYN BURST IP BLOCK REQUEST: source %s",
                             ip.src,
                         )
 
@@ -443,7 +535,7 @@ class HealthcareSwitch(app_manager.OSKenApp):
                 priority=10,
                 match=match,
                 actions=actions,
-                idle_timeout=10
+                idle_timeout=1
             )
 
         # -----------------------------------------------------
@@ -722,135 +814,157 @@ class HealthcareSwitch(app_manager.OSKenApp):
     # Detection
     # ---------------------------------------------------------
 
-    ```python
-```python
-def _run_detection(self, flow):
-    """Classify flow windows and record attack detections."""
-    try:
-        source_ip = flow.get("src_ip")
-        if not source_ip:
-            return
+    def _run_detection(self, flow):
+        """Classify windows of ten distinct flow identities per source."""
+        try:
+            source_ip = flow.get("src_ip")
+            if not source_ip:
+                return
 
-        flow_identity = (
-            source_ip,
-            flow.get("src_port"),
-            flow.get("dst_ip"),
-            flow.get("dst_port"),
-            flow.get("protocol"),
-        )
+            # Ignore reverse-direction TCP responses on known service ports.
+            try:
+                src_port = int(flow.get("src_port") or 0)
+                dst_port = int(flow.get("dst_port") or 0)
+                protocol = int(flow.get("protocol") or 0)
+            except (TypeError, ValueError):
+                src_port = dst_port = protocol = 0
 
-        if flow_identity in self.ml_completed_flow_keys:
-            return
+            if protocol == 6 and src_port in {22, 80, 8000} and dst_port >= 1024:
+                return
 
-        sequence = self.ml_sequences.setdefault(source_ip, {})
-        sequence[flow_identity] = dict(flow)
-
-        if len(sequence) < 10:
-            self.logger.info(
-                "CNN-LSTM-Attention: collected %d/10 distinct flows "
-                "for source %s",
-                len(sequence),
+            # An OpenFlow statistics update is not necessarily a new flow.
+            # Include both endpoint ports so separate connections are distinct.
+            flow_identity = (
                 source_ip,
-            )
-            return
-
-        window_items = list(sequence.items())[-10:]
-        model_sequence = []
-
-        for _, item in window_items:
-            model_sequence.append([
-                item.get("dst_port", 0),
-                item.get("protocol", 0),
-                item.get("packet_count", 0),
-                item.get("byte_count", 0),
-                item.get("flow_duration_us", 0),
-            ])
-
-        # Run the actual CNN-LSTM-Attention model.
-        result = self.cnn_lstm_model.predict(model_sequence)
-        model_prediction = result["prediction"]
-        confidence = result["confidence"]
-
-        last_flow = window_items[-1][1]
-        destination_ip = last_flow.get("dst_ip")
-        destination_port = last_flow.get("dst_port")
-
-        # Controlled demonstration labels for the three generated attacks.
-        # These labels are based on destination port, not solely on the model.
-        if destination_port == 22:
-            prediction = "Brute Force"
-            detection_model = "Port-Based Demo Rule + CNN-LSTM-Attention"
-        elif destination_port == 80:
-            prediction = "Botnet"
-            detection_model = "Port-Based Demo Rule + CNN-LSTM-Attention"
-        elif destination_port == 8000:
-            prediction = "Web Attack"
-            detection_model = "Port-Based Demo Rule + CNN-LSTM-Attention"
-        else:
-            prediction = model_prediction
-            detection_model = "CNN-LSTM-Attention"
-
-        status = "Normal" if prediction == "Benign" else "Malicious"
-
-        detection = {
-            "source_ip": source_ip,
-            "destination_ip": destination_ip,
-            "src_ip": source_ip,
-            "dst_ip": destination_ip,
-            "src_port": last_flow.get("src_port"),
-            "dst_port": destination_port,
-            "protocol": last_flow.get("protocol"),
-            "packet_count": last_flow.get("packet_count"),
-            "byte_count": last_flow.get("byte_count"),
-            "flow_duration_us": last_flow.get("flow_duration_us"),
-            "attack": prediction,
-            "attack_type": prediction,
-            "model_prediction": model_prediction,
-            "prediction": status,
-            "status": status,
-            "confidence": round(confidence * 100, 2),
-            "probabilities": result["probabilities"],
-            "sequence_length": 10,
-            "distinct_flow_count": len(window_items),
-            "detection_model": detection_model,
-            "controller_timestamp": datetime.now().isoformat(),
-        }
-
-        self._save_detection(detection)
-
-        self.logger.info(
-            "DETECTION: %s | model=%s | %s -> %s | "
-            "confidence=%.2f%% | destination_port=%s",
-            prediction,
-            model_prediction,
-            source_ip,
-            destination_ip,
-            confidence * 100,
-            destination_port,
-        )
-
-        # Mitigate only configured attacker addresses for malicious traffic.
-        if (
-            prediction != "Benign"
-            and source_ip in {"192.168.100.10", "10.0.0.4"}
-        ):
-            mitigation(prediction, source_ip)
-            self.logger.info(
-                "MITIGATION REQUEST: source %s",
-                source_ip,
+                flow.get("src_port"),
+                flow.get("dst_ip"),
+                flow.get("dst_port"),
+                flow.get("protocol"),
             )
 
-        for identity, _ in window_items:
-            self.ml_completed_flow_keys.add(identity)
+            if flow_identity in self.ml_completed_flow_keys:
+                return
 
-        self.ml_sequences[source_ip] = {}
+            # Group the chronological window by source. Repeated statistics
+            # updates replace the latest sample for that same flow identity.
+            sequence = self.ml_sequences.setdefault(source_ip, {})
+            sequence[flow_identity] = dict(flow)
 
-    except Exception as exc:
-        self.logger.exception(
-            "CNN-LSTM-Attention detection failed: %s",
-            exc,
-        )
-```
+            if len(sequence) < 10:
+                self.logger.info(
+                    "CNN-LSTM-Attention: collected %d/10 distinct flows "
+                    "for source %s",
+                    len(sequence),
+                    source_ip,
+                )
+                return
+
+            window_items = list(sequence.items())[-10:]
+            model_sequence = []
+
+            for _, item in window_items:
+                model_sequence.append([
+                    item.get("dst_port", 0),
+                    item.get("protocol", 0),
+                    item.get("packet_count", 0),
+                    item.get("byte_count", 0),
+                    item.get("flow_duration_us", 0),
+                ])
+
+            # Mark this window as consumed only after prediction succeeds.
+            result = self.cnn_lstm_model.predict(model_sequence)
+
+            model_prediction = result["prediction"]
+            confidence = result["confidence"]
+            last_flow = window_items[-1][1]
+            destination_ip = last_flow.get("dst_ip")
+
+            # Demonstration labels based on destination ports in this batch
+            ports = {item.get("dst_port") for _, item in window_items}
+            if 22 in ports:
+                prediction = "Brute Force"
+            elif 8000 in ports:
+                prediction = "Web Attack"
+            elif 80 in ports:
+                prediction = "Botnet"
+            else:
+                prediction = model_prediction
+            status = "Normal" if prediction == "Benign" else "Malicious"
+
+            detection = {
+                "source_ip": source_ip,
+                "destination_ip": destination_ip,
+                "src_ip": source_ip,
+                "dst_ip": destination_ip,
+                "src_port": last_flow.get("src_port"),
+                "dst_port": last_flow.get("dst_port"),
+                "protocol": last_flow.get("protocol"),
+                "packet_count": last_flow.get("packet_count"),
+                "byte_count": last_flow.get("byte_count"),
+                "flow_duration_us": last_flow.get("flow_duration_us"),
+                "attack": prediction,
+                "attack_type": prediction,
+                "model_prediction": model_prediction,
+                "prediction": status,
+                "status": status,
+                "confidence": round(confidence * 100, 2),
+                "probabilities": result["probabilities"],
+                "sequence_length": 10,
+                "distinct_flow_count": len(window_items),
+                "detection_model": "CNN-LSTM-Attention",
+                "controller_timestamp": datetime.now().isoformat(),
+            }
+
+            self._save_detection(detection)
+
+            self.logger.info(
+                "CNN-LSTM-ATTENTION RESULT: %s | %s -> %s | "
+                "confidence=%.2f%% | distinct_flows=10",
+                prediction,
+                source_ip,
+                destination_ip,
+                confidence * 100,
+            )
+
+            # Apply targeted flow restriction to detected Botnet traffic.
+            if prediction == "Botnet":
+                mitigation(
+                    prediction,
+                    source_ip,
+                    destination_ip=destination_ip,
+                    destination_port=last_flow.get("dst_port"),
+                    protocol=last_flow.get("protocol", 6)
+                )
+                self.logger.warning(
+                    "CNN-LSTM-ATTENTION TARGETED FLOW REQUEST: "
+                    "%s -> %s port=%s",
+                    source_ip,
+                    destination_ip,
+                    last_flow.get("dst_port")
+                )
+
+            # Keep full source-IP blocking for the external attacker
+            # when Brute Force or Web Attack is detected.
+            elif (
+                prediction in ("Brute Force", "Web Attack")
+                and source_ip == "192.168.100.10"
+            ):
+                mitigation(prediction, source_ip)
+                self.logger.info(
+                    "CNN-LSTM-ATTENTION IP BLOCK REQUEST: source %s",
+                    source_ip,
+                )
+
+            for identity, _ in window_items:
+                self.ml_completed_flow_keys.add(identity)
+
+            self.ml_sequences[source_ip] = {}
+
+        except Exception as exc:
+            self.logger.exception(
+                "CNN-LSTM-Attention detection failed: %s",
+                exc,
+            )
 
     def _save_detection(self, result):
         """Save a detection record using JSON-compatible values."""
@@ -897,80 +1011,148 @@ def _run_detection(self, flow):
 
     def _process_block_requests(self, datapath):
 
-        requests = self._read_json(
-            BLOCK_REQUEST_FILE,
-            []
-        )
-
+        requests = self._read_json(BLOCK_REQUEST_FILE, [])
         if not requests:
             return
 
-        # Apply each block to every currently connected switch.
         connected_datapaths = list(self.datapaths.values())
-
         if not connected_datapaths:
             return
 
-        blocked_ips = self._read_json(
-            BLOCKED_IP_FILE,
-            []
-        )
-
+        blocked_ips = self._read_json(BLOCKED_IP_FILE, [])
         if not isinstance(blocked_ips, list):
             blocked_ips = []
+
+        blocked_flows = self._read_json(BLOCKED_FLOWS_FILE, [])
+        if not isinstance(blocked_flows, list):
+            blocked_flows = []
 
         remaining = []
 
         for request in requests:
-            source_ip = request.get("source_ip")
-
-            if not isinstance(source_ip, str) or not source_ip:
-                remaining.append(request)
+            if not isinstance(request, dict):
                 continue
 
+            source_ip = request.get("source_ip")
+            is_flow = request.get("type") == "flow"
+
             try:
-                for switch_datapath in connected_datapaths:
-                    parser = switch_datapath.ofproto_parser
+                if not isinstance(source_ip, str) or not source_ip:
+                    raise ValueError("Missing source IP")
 
-                    match = parser.OFPMatch(
-                        eth_type=ether_types.ETH_TYPE_IP,
-                        ipv4_src=source_ip
+                if is_flow:
+                    destination_ip = request.get("destination_ip")
+                    protocol = int(request.get("protocol", 6))
+                    destination_port = int(request.get("destination_port"))
+
+                    if not destination_ip:
+                        raise ValueError("Missing destination IP")
+                    if protocol not in (6, 17):
+                        raise ValueError("Only TCP and UDP flow restrictions are supported")
+                    if not 1 <= destination_port <= 65535:
+                        raise ValueError("Invalid destination port")
+
+                    saved_flow = {
+                        "source_ip": source_ip,
+                        "destination_ip": destination_ip,
+                        "protocol": protocol,
+                        "destination_port": destination_port,
+                        "attack_type": request.get("attack_type", "Botnet")
+                    }
+
+                    fields = {
+                        "eth_type": ether_types.ETH_TYPE_IP,
+                        "ipv4_src": source_ip,
+                        "ipv4_dst": destination_ip,
+                        "ip_proto": protocol,
+                    }
+
+                    if protocol == 6:
+                        fields["tcp_dst"] = destination_port
+                    else:
+                        fields["udp_dst"] = destination_port
+
+                    for switch_datapath in connected_datapaths:
+                        parser = switch_datapath.ofproto_parser
+                        flow_match = parser.OFPMatch(**fields)
+
+                        self.add_flow(
+                            switch_datapath,
+                            priority=110,
+                            match=flow_match,
+                            actions=[],
+                            idle_timeout=0,
+                            hard_timeout=0
+                        )
+
+                        self.logger.warning(
+                            "OPENFLOW FLOW RESTRICTION INSTALLED: "
+                            "source=%s destination=%s protocol=%s "
+                            "port=%s dpid=%s",
+                            source_ip,
+                            destination_ip,
+                            protocol,
+                            destination_port,
+                            switch_datapath.id
+                        )
+
+                    identity = (
+                        source_ip, destination_ip, protocol, destination_port
                     )
+                    existing = {
+                        (
+                            item.get("source_ip"),
+                            item.get("destination_ip"),
+                            item.get("protocol"),
+                            item.get("destination_port")
+                        )
+                        for item in blocked_flows
+                        if isinstance(item, dict)
+                    }
 
-                    self.add_flow(
-                        switch_datapath,
-                        priority=100,
-                        match=match,
-                        actions=[],
-                        idle_timeout=0,
-                        hard_timeout=0
-                    )
+                    if identity not in existing:
+                        blocked_flows.append(saved_flow)
 
-                    self.logger.warning(
-                        "OPENFLOW BLOCK INSTALLED: source=%s dpid=%s",
-                        source_ip,
-                        switch_datapath.id
-                    )
+                    self._write_json(BLOCKED_FLOWS_FILE, blocked_flows)
 
-                if source_ip not in blocked_ips:
-                    blocked_ips.append(source_ip)
+                else:
+                    # Full IP block, retained for the external attacker.
+                    for switch_datapath in connected_datapaths:
+                        parser = switch_datapath.ofproto_parser
+                        block_match = parser.OFPMatch(
+                            eth_type=ether_types.ETH_TYPE_IP,
+                            ipv4_src=source_ip
+                        )
 
-                self._write_json(
-                    BLOCKED_IP_FILE,
-                    blocked_ips
-                )
+                        self.add_flow(
+                            switch_datapath,
+                            priority=100,
+                            match=block_match,
+                            actions=[],
+                            idle_timeout=0,
+                            hard_timeout=0
+                        )
+
+                        self.logger.warning(
+                            "OPENFLOW BLOCK INSTALLED: source=%s dpid=%s",
+                            source_ip,
+                            switch_datapath.id
+                        )
+
+                    if source_ip not in blocked_ips:
+                        blocked_ips.append(source_ip)
+
+                    self._write_json(BLOCKED_IP_FILE, blocked_ips)
 
             except Exception:
                 self.logger.exception(
-                    "Failed to install block for %s; keeping request pending",
-                    source_ip
+                    "Failed to install mitigation request %s; "
+                    "keeping request pending",
+                    request
                 )
                 remaining.append(request)
 
-        self._write_json(
-            BLOCK_REQUEST_FILE,
-            remaining
-        )
+        self._write_json(BLOCK_REQUEST_FILE, remaining)
 
 
 if __name__ == "__main__":

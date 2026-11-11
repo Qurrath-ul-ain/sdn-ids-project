@@ -59,6 +59,7 @@ def classify_record(item):
 def get_dashboard_data():
     detections = read_json(DETECTIONS_FILE, [])
     blocked_data = read_json(BLOCK_FILE, [])
+    flow_data = read_json(os.path.join(RUNTIME_DIR, "blocked_flows.json"), [])
 
     if not isinstance(detections, list):
         detections = []
@@ -106,6 +107,9 @@ def get_dashboard_data():
 
     blocked_ips = list(dict.fromkeys(blocked_ips))
 
+    if not isinstance(flow_data, list):
+        flow_data = []
+
     blocked_details = []
     for ip in blocked_ips:
         attack = "Malicious"
@@ -123,21 +127,64 @@ def get_dashboard_data():
             "status": "Blocked"
         })
 
+    # Targeted restrictions preserve the rest of a healthcare device's traffic.
+    for flow in flow_data:
+        if not isinstance(flow, dict):
+            continue
+
+        protocol_number = flow.get("protocol", 6)
+        protocol_name = {
+            6: "TCP",
+            17: "UDP",
+            "6": "TCP",
+            "17": "UDP"
+        }.get(protocol_number, str(protocol_number))
+
+        blocked_details.append({
+            "ip": flow.get("source_ip", "Unknown"),
+            "attack": flow.get("attack_type", "Botnet"),
+            "status": "Flow Restricted",
+            "destination_ip": flow.get("destination_ip", "Unknown"),
+            "destination_port": flow.get("destination_port", "Unknown"),
+            "protocol": protocol_name
+        })
+
     summary = {
         "total_detections": len(detections),
         "total_detections": len(detections),
         "benign_detections": len(benign_records),
         "attack_detections": len(attack_records),
         "blocked_ips": len(blocked_ips),
+        "flow_restrictions": len(flow_data),
         "attack_categories": category_data,
         "category_total": sum(categories.values())
     }
 
-    recent_detections = sorted(
+    # Show only the latest alert per attack/source/destination in the dashboard.
+    # Full detection history remains unchanged in runtime/detections.json.
+    ordered = sorted(
         [item for item in detections if isinstance(item, dict)],
-        key=lambda item: item.get("controller_timestamp", ""),
+        key=lambda item: item.get("controller_timestamp", item.get("timestamp", "")),
         reverse=True
-    )[:50]
+    )
+
+    recent_detections = []
+    seen_alerts = set()
+
+    for item in ordered:
+        attack = item.get("attack") or item.get("attack_type") or "Unknown"
+        src = item.get("src_ip") or item.get("source_ip") or ""
+        dst = item.get("dst_ip") or item.get("destination_ip") or ""
+        key = (attack, src, dst)
+
+        if key in seen_alerts:
+            continue
+
+        seen_alerts.add(key)
+        recent_detections.append(item)
+
+        if len(recent_detections) >= 50:
+            break
 
     return summary, recent_detections, blocked_details
 
